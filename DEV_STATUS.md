@@ -39,6 +39,9 @@ REAL_115_NOT_TESTED
 DEV-005:
 COMPLETE
 
+DEV-006:
+COMPLETE
+
 Repository:
 single-repository subtree layout
 
@@ -83,14 +86,14 @@ read-only media drive
 - Added Core 115 PKCE/device-code authorization sessions, explicit single-flight completion, token import fallback, managed `/115` provisioning, and admin-only authorization APIs.
 - Added Addition-only Token Pair persistence with bounded retry, visible persistence state, strict generation ordering, latest-wins retry semantics, safe failure logging, and DB narrow-write coverage.
 - Added a managed localhost WebDAV profile with private-setting persistence, independent bcrypt Basic Auth, lifecycle/status controls, HTTP Range streaming verification, and admin-only APIs.
+- Added the minimal Windows WinFsp/cgofuse read-only mount boundary with the default `R:` profile, localhost WebDAV validation, lifecycle/status controls, basic reconnect, and mock-only tests.
+- Recorded the WinFsp/Windows build environment and manual mount verification requirements in `docs/DEV_006_ENV.md` and `docs/DEV_006_WINDOWS_MOUNT.md`.
 - Verified SDK tests, repeated stress tests, and Core compatibility checks; Race validation is environment-blocked because the local Windows toolchain lacks `gcc`.
 
 Blocked:
 
 - The Desktop installer bundle remains unverified because the Windows signing step failed in DEV-001; Packaging DEV owns that issue.
-- No real 115 account login, token refresh, WebDAV mount, WinFsp drive mount, VLC playback, or media acceptance run was performed. This is intentional for DEV-001.
+- No real 115 account login, token refresh, WebDAV mount, WinFsp drive mount, VLC playback, or media acceptance run was performed. This remains intentional; DEV-006 automated tests use a mock backend and real drive mounting is manual verification.
 
 Next:
-DEV-006
-
-Windows Mount Integration
+DEV-007
