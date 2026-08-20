@@ -180,6 +180,13 @@ func admin(g *gin.RouterGroup) {
 	mediaDrive115.GET("/status", handles.MediaDrive115Status)
 	mediaDrive115.POST("/persistence/retry", handles.MediaDrive115PersistenceRetry)
 
+	managedWebDAV := g.Group("/media-drive/webdav")
+	managedWebDAV.GET("/profile", handles.MediaDriveWebDAVProfile)
+	managedWebDAV.POST("/profile", handles.MediaDriveWebDAVSaveProfile)
+	managedWebDAV.POST("/start", handles.MediaDriveWebDAVStart)
+	managedWebDAV.POST("/stop", handles.MediaDriveWebDAVStop)
+	managedWebDAV.GET("/status", handles.MediaDriveWebDAVStatus)
+
 	// retain /admin/task API to ensure compatibility with legacy automation scripts
 	_task(g.Group("/task"))
 
