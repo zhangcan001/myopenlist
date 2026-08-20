@@ -49,6 +49,9 @@ fn build_openlist_config(state: State<'_, AppState>) -> Result<ProcessConfig, St
 pub async fn start_openlist_core(state: State<'_, AppState>) -> Result<ProcessInfo, String> {
     let config = build_openlist_config(state)?;
 
+    if !PROCESS_MANAGER.is_registered(OPENLIST_CORE_PROCESS_ID) {
+        let _ = PROCESS_MANAGER.adopt_running(config.clone())?;
+    }
     if PROCESS_MANAGER.is_registered(OPENLIST_CORE_PROCESS_ID) {
         let _ = PROCESS_MANAGER.stop(OPENLIST_CORE_PROCESS_ID);
         sleep(Duration::from_millis(500)).await;
@@ -60,9 +63,13 @@ pub async fn start_openlist_core(state: State<'_, AppState>) -> Result<ProcessIn
 }
 
 #[tauri::command]
-pub async fn stop_openlist_core(_state: State<'_, AppState>) -> Result<ProcessInfo, String> {
+pub async fn stop_openlist_core(state: State<'_, AppState>) -> Result<ProcessInfo, String> {
     if !PROCESS_MANAGER.is_registered(OPENLIST_CORE_PROCESS_ID) {
-        return Err("OpenList Core process not registered.".into());
+        let config = build_openlist_config(state)?;
+        PROCESS_MANAGER.adopt_running(config)?;
+    }
+    if !PROCESS_MANAGER.is_registered(OPENLIST_CORE_PROCESS_ID) {
+        return Err("OpenList Core process is not running.".into());
     }
     let raw_info = PROCESS_MANAGER.stop(OPENLIST_CORE_PROCESS_ID);
     PROCESS_MANAGER.remove(OPENLIST_CORE_PROCESS_ID)?;
@@ -83,6 +90,11 @@ pub async fn get_openlist_core_status(state: State<'_, AppState>) -> Result<Serv
         .read()
         .clone()
         .ok_or("Failed to read app settings")?;
+    if !PROCESS_MANAGER.is_registered(OPENLIST_CORE_PROCESS_ID) {
+        if let Ok(config) = build_openlist_config(state) {
+            let _ = PROCESS_MANAGER.adopt_running(config);
+        }
+    }
     let openlist_config = app_settings.openlist;
     let protocol = if openlist_config.ssl_enabled {
         "https"

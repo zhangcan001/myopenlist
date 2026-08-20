@@ -449,6 +449,40 @@ impl ProcessManager {
         self.start(&id)
     }
 
+    pub fn adopt_running(&self, config: ProcessConfig) -> Result<Option<ProcessInfo>, String> {
+        if self.is_registered(&config.id) {
+            return Ok(None);
+        }
+
+        let mut sys = System::new_all();
+        sys.refresh_processes(ProcessesToUpdate::All, true);
+        let Some(pid) = self.find_matching_process(&sys, 0, &config.bin_path, &config.args) else {
+            return Ok(None);
+        };
+
+        let started_at = Self::current_timestamp();
+        let info = ProcessInfo {
+            id: config.id.clone(),
+            name: config.name.clone(),
+            is_running: true,
+            pid: Some(pid),
+            started_at: Some(started_at),
+            config: config.clone(),
+        };
+        self.processes.write().insert(
+            config.id.clone(),
+            ManagedProcess {
+                config,
+                child: None,
+                external_pid: Some(pid),
+                started_at: Some(started_at),
+            },
+        );
+        self.persist_state();
+        log::info!("Adopted running process '{}' (pid: {})", info.id, pid);
+        Ok(Some(info))
+    }
+
     pub fn start(&self, id: &str) -> Result<ProcessInfo, String> {
         let mut processes = self.processes.write();
 
