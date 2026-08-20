@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔧 OpenList 文档
+    url: https://docs.oplist.org/
+    about: 底层服务的官方 OpenList 文档
+  - name: 🌐 Rclone 文档
+    url: https://rclone.org/docs/
+    about: 远程存储配置的官方 Rclone 文档

@@ -1,0 +1,538 @@
+name: 'Build Test - All Platforms'
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_version:
+        description: 'Test version (e.g., 1.0.0-test). Leave empty to use package.json version with -test suffix'
+        required: false
+        type: string
+
+permissions: write-all
+env:
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+  TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+  TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+  # macOS signing and notarization (optional for testing)
+  APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+  APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+  APPLE_ID: ${{ secrets.APPLE_ID }}
+  APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+  APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+  # Certum cloud code signing for Windows
+  CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
+  CERTUM_USERNAME: ${{ secrets.CERTUM_USERNAME }}
+  CERTUM_CERTIFICATE_SHA1: ${{ secrets.CERTUM_CERTIFICATE_SHA1 }}
+
+concurrency:
+  group: "${{ github.workflow }} - ${{ github.head_ref || github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: Prepare Build Information
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      build-date: ${{ steps.version.outputs.build-date }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 'lts/*'
+
+      - name: Calculate test version
+        id: version
+        run: |
+          # If manual test version is provided, use it
+          if [ -n "${{ inputs.test_version }}" ]; then
+            TEST_VERSION="${{ inputs.test_version }}"
+            echo "Using manual test version: $TEST_VERSION"
+            echo "version=$TEST_VERSION" >> $GITHUB_OUTPUT
+          else
+            # Use package.json version with test suffix
+            CURRENT_VERSION=$(node -p "require('./package.json').version")
+            TEST_VERSION="$CURRENT_VERSION-test"
+            echo "Using auto test version: $TEST_VERSION"
+            echo "version=$TEST_VERSION" >> $GITHUB_OUTPUT
+          fi
+          
+          # Add build date for reference
+          BUILD_DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          echo "build-date=$BUILD_DATE" >> $GITHUB_OUTPUT
+
+  build:
+    name: Build
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            platform: windows
+            arch: x64
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            platform: windows
+            arch: arm64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            platform: macos
+            arch: arm64
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            platform: macos
+            arch: x64
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            platform: linux
+            arch: x64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Add Rust Target
+        run: rustup target add ${{ matrix.target }}
+      
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          save-if: false
+
+      - name: Install dependencies (ubuntu only)
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxslt1.1 libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+        
+      - name: Install Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      
+      - name: Install dependencies
+        uses: borales/actions-yarn@v5
+        with:
+          cmd: install
+
+      - name: Prebuild and check
+        run: |
+          yarn install
+          yarn run prebuild:dev --target=${{ matrix.target }}
+
+      - name: Update version for test build (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          # Update package.json
+          yarn version --new-version ${{ needs.prepare.outputs.version }} --no-git-tag-version
+          
+          # Update Cargo.toml
+          (Get-Content src-tauri/Cargo.toml) -replace '^version = ".*"', 'version = "${{ needs.prepare.outputs.version }}"' | Set-Content src-tauri/Cargo.toml
+          
+          # Update tauri.conf.json
+          (Get-Content src-tauri/tauri.conf.json) -replace '"version": ".*"', '"version": "${{ needs.prepare.outputs.version }}"' | Set-Content src-tauri/tauri.conf.json
+
+      - name: Update version for test build (macOS)
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          # Update package.json
+          yarn version --new-version ${{ needs.prepare.outputs.version }} --no-git-tag-version
+          
+          # Update Cargo.toml
+          sed -i '' 's/^version = "[^"]*"/version = "${{ needs.prepare.outputs.version }}"/' src-tauri/Cargo.toml
+          
+          # Update tauri.conf.json
+          sed -i '' 's/"version": "[^"]*"/"version": "${{ needs.prepare.outputs.version }}"/' src-tauri/tauri.conf.json
+
+      - name: Update version for test build (Linux)
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          # Update package.json
+          yarn version --new-version ${{ needs.prepare.outputs.version }} --no-git-tag-version
+          
+          # Update Cargo.toml
+          sed -i 's/^version = "[^"]*"/version = "${{ needs.prepare.outputs.version }}"/' src-tauri/Cargo.toml
+          
+          # Update tauri.conf.json
+          sed -i 's/"version": "[^"]*"/"version": "${{ needs.prepare.outputs.version }}"/' src-tauri/tauri.conf.json
+          
+      - name: Import Apple Developer Certificate (macOS only)
+        if: matrix.platform == 'macos' && env.APPLE_CERTIFICATE != ''
+        uses: apple-actions/import-codesign-certs@v5
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Setup Certum Code Signing (Windows)
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          echo "=== SETTING UP CERTUM CODE SIGNING FOR WINDOWS ==="
+          echo "Installing SimplySign Desktop and configuring for automatic authentication"
+
+          chmod +x ./.github/scripts/install-simplysign.sh
+          ./.github/scripts/install-simplysign.sh
+
+          echo "Configuring registry for automatic login dialog..."
+          powershell -ExecutionPolicy Bypass -File "./.github/scripts/configure-simplysign-registry.ps1"
+
+          echo "Certum signing environment ready"
+
+      - name: Authenticate Certum (Windows)
+        if: matrix.platform == 'windows'
+        shell: bash
+        env:
+          CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
+          CERTUM_USERNAME: ${{ secrets.CERTUM_USERNAME }}
+          CERTUM_CERTIFICATE_SHA1: ${{ secrets.CERTUM_CERTIFICATE_SHA1 }}
+        run: |
+          echo "=== CERTUM AUTHENTICATION ==="
+          echo "Authenticating with Certum cloud certificate using TOTP"
+
+          for attempt in 1 2 3; do
+            echo "Authentication attempt ${attempt}/3"
+            if powershell -ExecutionPolicy Bypass -File "./.github/scripts/connect-simplySign-enhanced.ps1"; then
+              echo "Authentication completed"
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 3 ]; then
+              echo "Authentication attempt failed, retrying in 10 seconds..."
+              sleep 10
+            fi
+          done
+
+          echo "ERROR: Certum authentication failed after 3 attempts"
+          exit 1
+
+      - name: Configure Certum Certificate Thumbprint (Windows)
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          echo "=== CONFIGURING CERTUM CERTIFICATE THUMBPRINT ==="
+          CONFIG_PATH="src-tauri/tauri.windows.conf.json"
+          THUMBPRINT="${{ secrets.CERTUM_CERTIFICATE_SHA1 }}"
+          
+          # Update the certificateThumbprint field using jq
+          jq --arg thumbprint "$THUMBPRINT" '.bundle.windows.certificateThumbprint = $thumbprint' "$CONFIG_PATH" > tmp.$$ && mv tmp.$$ "$CONFIG_PATH"
+          
+          echo "Certificate thumbprint configured: $THUMBPRINT"
+
+      - name: Build the app
+        if: matrix.platform == 'windows' || matrix.platform == 'linux'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+        with:
+          args: --target ${{ matrix.target }}
+
+      
+      - name: Build the app (macOS)
+        uses: tauri-apps/tauri-action@v0
+        if: matrix.platform == 'macos'
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          # macOS signing and notarization environment variables
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        with:
+          args: --target ${{ matrix.target }}
+
+      - name: Rename And upload Updater(MacOS)
+        if: matrix.target == 'x86_64-apple-darwin' || matrix.target == 'aarch64-apple-darwin'
+        shell: bash
+        run: |
+          TAG=${{ needs.prepare.outputs.version }}
+          VERSION=${TAG#v}
+          SOURCE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/macos"
+          TARGET_NAME="OpenList-Desktop-${VERSION}-${{ matrix.arch }}.app.tar.gz"
+          if [ -f "$SOURCE_DIR/OpenList-Desktop.app.tar.gz" ]; then
+            mv "$SOURCE_DIR/OpenList-Desktop.app.tar.gz" "$SOURCE_DIR/$TARGET_NAME"
+            mv "$SOURCE_DIR/OpenList-Desktop.app.tar.gz.sig" "$SOURCE_DIR/$TARGET_NAME.sig"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.platform }}-${{ matrix.arch }}-build
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.sig
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.rpm
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.tar.gz
+          retention-days: 30
+  
+  build-linux-arm:
+    name: Build Linux ARM
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: aarch64-unknown-linux-gnu
+            arch: arm64
+          - os: ubuntu-22.04
+            target: armv7-unknown-linux-gnueabihf
+            arch: armhf
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Add Rust Target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          save-if: false
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        uses: borales/actions-yarn@v5
+        with:
+          cmd: install
+
+      - name: Prebuild and check
+        run: |
+          yarn install
+          yarn run prebuild:dev --target=${{ matrix.target }}
+
+      - name: Update version for test build
+        run: |
+          # Update package.json
+          yarn version --new-version ${{ needs.prepare.outputs.version }} --no-git-tag-version
+          
+          # Update Cargo.toml
+          sed -i 's/^version = "[^"]*"/version = "${{ needs.prepare.outputs.version }}"/' src-tauri/Cargo.toml
+          
+          # Update tauri.conf.json
+          sed -i 's/"version": "[^"]*"/"version": "${{ needs.prepare.outputs.version }}"/' src-tauri/tauri.conf.json
+
+      - name: Setup for Linux ARM cross-compilation
+        run: |-
+          sudo ls -lR /etc/apt/
+
+          cat > /tmp/sources.list << EOF
+          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy main multiverse universe restricted
+          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy-security main multiverse universe restricted
+          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy-updates main multiverse universe restricted
+          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy-backports main multiverse universe restricted
+
+          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy main multiverse universe restricted
+          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main multiverse universe restricted
+          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main multiverse universe restricted
+          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main multiverse universe restricted
+          EOF
+
+          sudo mv /etc/apt/sources.list /etc/apt/sources.list.default
+          sudo mv /tmp/sources.list /etc/apt/sources.list
+
+          sudo dpkg --add-architecture ${{ matrix.arch }}
+          sudo apt update
+
+          sudo apt install -y \
+            libxslt1.1:${{ matrix.arch }} \
+            libwebkit2gtk-4.1-dev:${{ matrix.arch }} \
+            libayatana-appindicator3-dev:${{ matrix.arch }} \
+            libssl-dev:${{ matrix.arch }} \
+            patchelf:${{ matrix.arch }} \
+            librsvg2-dev:${{ matrix.arch }}
+
+      - name: Install aarch64 tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt install -y \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu
+
+      - name: Install armv7 tools
+        if: matrix.target == 'armv7-unknown-linux-gnueabihf'
+        run: |
+          sudo apt install -y \
+            gcc-arm-linux-gnueabihf \
+            g++-arm-linux-gnueabihf
+
+      - name: Build for Linux ARM
+        run: |
+          export PKG_CONFIG_ALLOW_CROSS=1
+          if [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
+            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig/:$PKG_CONFIG_PATH
+            export PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu/
+          elif [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
+            export PKG_CONFIG_PATH=/usr/lib/arm-linux-gnueabihf/pkgconfig/:$PKG_CONFIG_PATH
+            export PKG_CONFIG_SYSROOT_DIR=/usr/arm-linux-gnueabihf/
+          fi
+          yarn build --target ${{ matrix.target }}
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+
+      - name: Upload Linux ARM artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-${{ matrix.target }}-build
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*.rpm
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.sig
+          retention-days: 30
+
+  generate-latest-json:
+    name: Generate latest.json for Auto-Update
+    needs: [prepare,build, build-linux-arm]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v7
+        with:
+          pattern: '*-build'
+          merge-multiple: true
+          path: artifacts
+
+      - name: Generate latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.prepare.outputs.version }}"
+          VERSION="${TAG#v}"
+          REPO="${{ github.repository }}"
+          BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          
+          # Read release notes from release_notes.md
+          NOTES=""
+          if [ -f "release_notes.md" ]; then
+            NOTES=$(cat release_notes.md | jq -Rs .)
+          else
+            NOTES="\"Release ${TAG}\""
+          fi
+          
+          # Function to read signature from local .sig file
+          get_signature() {
+            local sig_file="$1"
+            if [ -f "$sig_file" ]; then
+              cat "$sig_file"
+            else
+              echo ""
+            fi
+          }
+          
+          # Build platforms object
+          # Windows x64
+          WIN_X64_URL="${BASE_URL}/OpenList-Desktop_${VERSION}_x64-setup.exe"
+          WIN_X64_SIG=$(get_signature "artifacts/nsis/OpenList-Desktop_${VERSION}_x64-setup.exe.sig")
+          
+          # Windows arm64
+          WIN_ARM64_URL="${BASE_URL}/OpenList-Desktop_${VERSION}_arm64-setup.exe"
+          WIN_ARM64_SIG=$(get_signature "artifacts/nsis/OpenList-Desktop_${VERSION}_arm64-setup.exe.sig")
+          
+          # macOS arm64 (Apple Silicon)
+          MAC_ARM64_URL="${BASE_URL}/OpenList-Desktop_${VERSION}-arm64.app.tar.gz"
+          MAC_ARM64_SIG=$(get_signature "artifacts/macos/OpenList-Desktop-${VERSION}-arm64.app.tar.gz.sig")
+          
+          # macOS x64 (Intel)
+          MAC_X64_URL="${BASE_URL}/OpenList-Desktop_${VERSION}_x64.app.tar.gz"
+          MAC_X64_SIG=$(get_signature "artifacts/macos/OpenList-Desktop-${VERSION}-x64.app.tar.gz.sig")
+          
+          # Linux x64
+          LINUX_X64_DEB_URL="${BASE_URL}/OpenList-Desktop_${VERSION}_amd64.deb"
+          LINUX_X64_DEB_SIG=$(get_signature "artifacts/deb/OpenList-Desktop_${VERSION}_amd64.deb.sig")
+          
+          # Linux arm64
+          LINUX_ARM64_DEB_URL="${BASE_URL}/OpenList-Desktop_${VERSION}_arm64.deb"
+          LINUX_ARM64_DEB_SIG=$(get_signature "artifacts/deb/OpenList-Desktop_${VERSION}_arm64.deb.sig")
+
+          # Linux armhf
+          LINUX_ARMHF_DEB_URL="${BASE_URL}/OpenList-Desktop_${VERSION}_armhf.deb"
+          LINUX_ARMHF_DEB_SIG=$(get_signature "artifacts/deb/OpenList-Desktop_${VERSION}_armhf.deb.sig")
+          
+          # Create latest.json
+          cat > latest.json << EOF
+          {
+            "version": "${VERSION}",
+            "notes": ${NOTES},
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "windows-x86_64": {
+                "url": "${WIN_X64_URL}",
+                "signature": "${WIN_X64_SIG}"
+              },
+              "windows-aarch64": {
+                "url": "${WIN_ARM64_URL}",
+                "signature": "${WIN_ARM64_SIG}"
+              },
+              "darwin-x86_64": {
+                "url": "${MAC_X64_URL}",
+                "signature": "${MAC_X64_SIG}"
+              },
+              "darwin-aarch64": {
+                "url": "${MAC_ARM64_URL}",
+                "signature": "${MAC_ARM64_SIG}"
+              },
+              "linux-x86_64": {
+                "url": "${LINUX_X64_DEB_URL}",
+                "signature": "${LINUX_X64_DEB_SIG}"
+              },
+              "linux-aarch64": {
+                "url": "${LINUX_ARM64_DEB_URL}",
+                "signature": "${LINUX_ARM64_DEB_SIG}"
+              },
+              "linux-armv7": {
+                "url": "${LINUX_ARMHF_DEB_URL}",
+                "signature": "${LINUX_ARMHF_DEB_SIG}"
+              }
+            }
+          }
+          EOF
+          
+          echo "Generated latest.json:"
+          cat latest.json
+
+      - name: Upload latest.json to artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: latest-json
+          retention-days: 30
+          path: latest.json
+          

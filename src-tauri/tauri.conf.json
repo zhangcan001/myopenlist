@@ -1,0 +1,58 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "OpenList-Desktop",
+  "version": "0.9.1",
+  "identifier": "io.github.openlistteam.openlist.desktop",
+  "build": {
+    "beforeDevCommand": "yarn run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "yarn run web:build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "OpenList Desktop",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 600,
+        "minHeight": 400,
+        "resizable": true,
+        "center": true,
+        "decorations": false,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": true,
+    "longDescription": "OpenList Desktop is a cross-platform desktop application for managing your OpenList",
+    "category": "DeveloperTool",
+    "shortDescription": "OpenList Desktop",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "externalBin": ["binary/openlist"]
+  },
+  "plugins": {
+    "process": {
+      "all": true
+    },
+    "fs": {
+      "requireLiteralLeadingDot": false
+    },
+    "shell": {
+      "open": true
+    },
+    "store": {},
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIzQzg5OTgzOTE3NkFFM0MKUldROHJuYVJnNW5JSXpESWhtY0dyM2VFVk0zdDA5MUt4OXRtUXRyY25SZUo3elVCYzlPMDhGQm0K",
+      "endpoints": ["https://github.com/OpenListTeam/openlist-desktop/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

@@ -1,0 +1,525 @@
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
+
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+use tauri::State;
+use tokio::task::JoinSet;
+use tokio::time::{Duration, sleep, timeout};
+
+use crate::conf::rclone_config::{RcloneConfigFile, WebDavRemoteConfig, reveal_password};
+use crate::core::process_manager::{PROCESS_MANAGER, ProcessConfig, ProcessInfo};
+use crate::object::structs::{AppState, RcloneMountInfo};
+use crate::utils::args::{remove_network_mode_flags, split_args_vec};
+use crate::utils::path::{
+    get_app_logs_dir, get_rclone_binary_path_with_custom, get_rclone_config_path_with_custom,
+};
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RcloneWebdavConfigInput {
+    pub url: String,
+    pub vendor: Option<String>,
+    pub user: String,
+    pub pass: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MountProcessInput {
+    pub id: String,
+    pub name: String,
+    pub args: Vec<String>,
+    #[serde(default, rename = "networkMode")]
+    pub network_mode: bool,
+}
+
+pub fn get_mount_process_id(remote_name: &str) -> String {
+    format!("rclone_mount_{remote_name}_process")
+}
+
+fn split_mount_args(args: Vec<String>) -> Vec<String> {
+    let mut args = args.into_iter();
+    let mut result: Vec<String> = args.by_ref().take(2).collect();
+    let (extra_args, _) = remove_network_mode_flags(split_args_vec(args.collect()));
+    result.extend(extra_args);
+    result
+}
+
+fn insert_mount_flag(args: &mut Vec<String>, flag: String) {
+    args.insert(args.len().min(2), flag);
+}
+
+fn ensure_vfs_write_cache(args: &mut Vec<String>) {
+    let has_cache_mode = args
+        .iter()
+        .take_while(|arg| *arg != "--")
+        .any(|arg| arg == "--vfs-cache-mode" || arg.starts_with("--vfs-cache-mode="));
+    if !has_cache_mode {
+        insert_mount_flag(args, "--vfs-cache-mode=writes".into());
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn insert_network_mode(args: &mut Vec<String>, network_mode: bool) {
+    insert_mount_flag(args, format!("--network-mode={network_mode}"));
+}
+
+#[cfg(not(target_os = "windows"))]
+fn insert_network_mode(_args: &mut Vec<String>, _network_mode: bool) {}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(target_os = "windows")]
+    use super::insert_network_mode;
+    use super::{ensure_vfs_write_cache, split_mount_args};
+
+    #[test]
+    fn preserves_mount_positionals_while_splitting_extra_flags() {
+        let args = vec![
+            "--network-mode".into(),
+            r"C:\Mount Dir".into(),
+            "--log-file 'C:\\Log Dir\\rclone.log' --network-mode=false".into(),
+        ];
+
+        assert_eq!(
+            split_mount_args(args),
+            vec![
+                "--network-mode",
+                r"C:\Mount Dir",
+                "--log-file",
+                r"C:\Log Dir\rclone.log"
+            ]
+        );
+    }
+
+    #[test]
+    fn adds_default_vfs_write_cache() {
+        let mut args = vec![
+            "remote:".into(),
+            "mount-point".into(),
+            "--log-file".into(),
+            "--".into(),
+        ];
+
+        ensure_vfs_write_cache(&mut args);
+
+        assert_eq!(
+            args,
+            vec![
+                "remote:",
+                "mount-point",
+                "--vfs-cache-mode=writes",
+                "--log-file",
+                "--"
+            ]
+        );
+    }
+
+    #[test]
+    fn ignores_vfs_cache_mode_after_option_terminator() {
+        let mut args = vec![
+            "remote:".into(),
+            "mount-point".into(),
+            "--".into(),
+            "--vfs-cache-mode=full".into(),
+        ];
+
+        ensure_vfs_write_cache(&mut args);
+
+        assert_eq!(args[2], "--vfs-cache-mode=writes");
+    }
+
+    #[test]
+    fn preserves_explicit_vfs_cache_mode() {
+        for cache_mode in [
+            vec!["--vfs-cache-mode=full".into()],
+            vec!["--vfs-cache-mode".into(), "off".into()],
+        ] {
+            let mut args = vec!["remote:".into(), "mount-point".into()];
+            args.extend(cache_mode);
+            let expected = args.clone();
+
+            ensure_vfs_write_cache(&mut args);
+
+            assert_eq!(args, expected);
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn inserts_network_mode_after_mount_positionals() {
+        let mut args = vec![
+            "remote:".into(),
+            "mount-point".into(),
+            "--log-file".into(),
+            "--".into(),
+        ];
+
+        insert_network_mode(&mut args, true);
+
+        assert_eq!(
+            args,
+            vec![
+                "remote:",
+                "mount-point",
+                "--network-mode=true",
+                "--log-file",
+                "--"
+            ]
+        );
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn get_libfuse_path() -> Option<String> {
+    [
+        "/opt/local/lib/libfuse.2.dylib",
+        "/opt/homebrew/lib/libfuse.2.dylib",
+        "/opt/homebrew/lib/libfuse-t.dylib",
+    ]
+    .iter()
+    .find(|path| Path::new(path).is_file())
+    .map(|path| (*path).to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn get_libfuse_path() -> Option<String> {
+    None
+}
+
+#[tauri::command]
+pub async fn rclone_list_config(
+    remote_type: String,
+    state: State<'_, AppState>,
+) -> Result<Value, String> {
+    let config = RcloneConfigFile::load_with_custom(state.clone())?;
+
+    let filtered: HashMap<String, Value> = config
+        .remotes
+        .iter()
+        .filter(|(_, remote)| remote_type.is_empty() || remote.remote_type == remote_type)
+        .map(|(name, remote)| {
+            let mut obj = serde_json::Map::new();
+            obj.insert("type".to_string(), json!(remote.remote_type));
+            for (key, value) in &remote.options {
+                if key == "pass" {
+                    let revealed_pass = reveal_password(value, state.clone())
+                        .unwrap_or_else(|_| "*****".to_string());
+                    obj.insert(key.clone(), json!(revealed_pass));
+                    continue;
+                }
+                obj.insert(key.clone(), json!(value));
+            }
+            (name.clone(), Value::Object(obj))
+        })
+        .collect();
+
+    Ok(json!(filtered))
+}
+
+#[tauri::command]
+pub async fn rclone_list_remotes(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let config = RcloneConfigFile::load_with_custom(state)?;
+    Ok(config.list_remotes())
+}
+
+#[tauri::command]
+pub async fn rclone_create_remote(
+    name: String,
+    r#type: String,
+    config: RcloneWebdavConfigInput,
+    state: State<'_, AppState>,
+) -> Result<bool, String> {
+    let mut rclone_config = RcloneConfigFile::load_with_custom(state.clone())?;
+
+    if r#type != "webdav" {
+        return Err(format!("Unsupported remote type: {}", r#type));
+    }
+
+    let webdav = WebDavRemoteConfig {
+        name: name.clone(),
+        url: config.url,
+        vendor: config.vendor,
+        user: config.user,
+        pass: config.pass,
+    };
+
+    let remote_config = webdav.to_rclone_config_with_obscured_pass(state.clone())?;
+    rclone_config.set_remote(remote_config);
+    rclone_config.save(state)?;
+
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn rclone_update_remote(
+    name: String,
+    r#type: String,
+    config: RcloneWebdavConfigInput,
+    state: State<'_, AppState>,
+) -> Result<bool, String> {
+    let mut rclone_config = RcloneConfigFile::load_with_custom(state.clone())?;
+
+    if !rclone_config.has_remote(&name) {
+        return Err(format!("Remote '{name}' does not exist"));
+    }
+
+    if r#type != "webdav" {
+        return Err(format!("Unsupported remote type: {}", r#type));
+    }
+
+    let webdav = WebDavRemoteConfig {
+        name: name.clone(),
+        url: config.url,
+        vendor: config.vendor,
+        user: config.user,
+        pass: config.pass,
+    };
+
+    let remote_config = webdav.to_rclone_config_with_obscured_pass(state.clone())?;
+    rclone_config.set_remote(remote_config);
+    rclone_config.save(state)?;
+
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn rclone_delete_remote(
+    name: String,
+    state: State<'_, AppState>,
+) -> Result<bool, String> {
+    let mut rclone_config = RcloneConfigFile::load_with_custom(state.clone())?;
+
+    let process_id = get_mount_process_id(&name);
+    if PROCESS_MANAGER.is_registered(&process_id) {
+        let _ = PROCESS_MANAGER.stop(&process_id);
+        let _ = PROCESS_MANAGER.remove(&process_id);
+    }
+
+    if rclone_config.remove_remote(&name).is_none() {
+        return Err(format!("Remote '{name}' does not exist"));
+    }
+
+    rclone_config.save(state)?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn mount_remote(
+    config: MountProcessInput,
+    state: State<'_, AppState>,
+) -> Result<ProcessInfo, String> {
+    let binary_path = get_rclone_binary_path_with_custom(state.clone())
+        .map_err(|e| format!("Failed to get rclone binary path: {e}"))?;
+    let log_dir =
+        get_app_logs_dir().map_err(|e| format!("Failed to get app logs directory: {e}"))?;
+    let rclone_conf_path = get_rclone_config_path_with_custom(state)
+        .map_err(|e| format!("Failed to get rclone config path: {e}"))?;
+
+    let mut args_vec = split_mount_args(config.args.clone());
+    insert_network_mode(&mut args_vec, config.network_mode);
+    ensure_vfs_write_cache(&mut args_vec);
+
+    let mount_point_opt = args_vec.iter().filter(|arg| !arg.starts_with('-')).nth(1);
+
+    if let Some(mount_point) = mount_point_opt {
+        let mount_path = Path::new(mount_point);
+        if !mount_path.exists()
+            && let Err(e) = fs::create_dir_all(mount_path)
+        {
+            return Err(format!(
+                "Failed to create mount point directory '{}': {}",
+                mount_point, e
+            ));
+        }
+    }
+
+    let mut args: Vec<String> = vec![
+        "mount".into(),
+        "--config".into(),
+        rclone_conf_path.to_string_lossy().into_owned(),
+    ];
+    args.extend(args_vec);
+
+    let log_file = log_dir.join("process_rclone.log");
+
+    let env_vars = if std::env::var_os("CGOFUSE_LIBFUSE_PATH").is_none() {
+        get_libfuse_path().map(|path| HashMap::from([(String::from("CGOFUSE_LIBFUSE_PATH"), path)]))
+    } else {
+        None
+    };
+
+    let process_config = ProcessConfig {
+        id: config.id.clone(),
+        name: config.name.clone(),
+        bin_path: binary_path.to_string_lossy().into_owned(),
+        args,
+        log_file: log_file.to_string_lossy().into_owned(),
+        working_dir: binary_path
+            .parent()
+            .map(|p| p.to_string_lossy().into_owned()),
+        env_vars,
+    };
+
+    if PROCESS_MANAGER.is_registered(&config.id) {
+        let _ = PROCESS_MANAGER.stop(&config.id);
+        sleep(Duration::from_millis(500)).await;
+        let _ = PROCESS_MANAGER.remove(&config.id);
+        sleep(Duration::from_millis(500)).await;
+    }
+
+    PROCESS_MANAGER.register_and_start(process_config)
+}
+
+#[tauri::command]
+pub async fn unmount_remote(name: String) -> Result<bool, String> {
+    let process_id = get_mount_process_id(&name);
+
+    if !PROCESS_MANAGER.is_registered(&process_id) {
+        return Ok(true); // Already not mounted
+    }
+
+    let info = PROCESS_MANAGER.get_status(&process_id)?;
+    if info.is_running {
+        PROCESS_MANAGER.stop(&process_id)?;
+    }
+
+    let _ = PROCESS_MANAGER.remove(&process_id);
+
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn check_mount_status(mount_point: String) -> Result<(), String> {
+    let timeout_duration = Duration::from_secs(2);
+    let mount_point_clone = mount_point.clone();
+
+    let result = timeout(timeout_duration, async move {
+        tokio::task::spawn_blocking(move || {
+            let path = Path::new(&mount_point_clone);
+
+            if !path.exists() {
+                return Err(format!(
+                    "Mount point '{}' does not exist",
+                    mount_point_clone
+                ));
+            }
+
+            #[cfg(target_os = "windows")]
+            {
+                let drive_path = if mount_point_clone.len() == 2 && mount_point_clone.ends_with(':')
+                {
+                    format!("{}\\", mount_point_clone)
+                } else {
+                    mount_point_clone.clone()
+                };
+
+                let mut it =
+                    fs::read_dir(&drive_path).map_err(|e| format!("Access denied: {}", e))?;
+
+                match it.next() {
+                    Some(Ok(_)) => Ok(()),
+                    Some(Err(e)) => Err(format!("Access denied: {}", e)),
+                    None => Ok(()),
+                }
+            }
+
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
+            {
+                let mut it = fs::read_dir(&mount_point_clone)
+                    .map_err(|e| format!("Access denied: {}", e))?;
+
+                match it.next() {
+                    Some(Ok(_)) => Ok(()),
+                    Some(Err(e)) => Err(format!("Access denied: {}", e)),
+                    None => Ok(()),
+                }
+            }
+        })
+        .await
+        .map_err(|e| format!("Runtime error: {}", e))?
+    })
+    .await;
+
+    match result {
+        Ok(inner_res) => inner_res,
+        Err(e) => Err(format!(
+            "Timeout: Network drive '{}' is non-responsive: {}",
+            mount_point, e
+        )),
+    }
+}
+
+#[tauri::command]
+pub async fn get_mount_info_list(
+    _state: State<'_, AppState>,
+) -> Result<Vec<RcloneMountInfo>, String> {
+    let process_list = PROCESS_MANAGER.list();
+    let mut set = JoinSet::new();
+
+    for process in process_list {
+        if !process.id.starts_with("rclone_mount_") {
+            continue;
+        }
+
+        let args = &process.config.args;
+        if args.len() >= 5 && args[0] == "mount" {
+            let remote_path = args[3].clone();
+            let mount_point = args[4].clone();
+            let process_id = process.id.clone();
+            let is_running = process.is_running;
+
+            set.spawn(async move {
+                let check_result = check_mount_status(mount_point.clone()).await;
+
+                let (status, error_msg) = match check_result {
+                    Ok(()) => {
+                        if is_running {
+                            ("mounted".to_string(), None)
+                        } else {
+                            ("unmounted".to_string(), None)
+                        }
+                    }
+                    Err(e) => {
+                        if is_running {
+                            ("error".to_string(), Some(e))
+                        } else {
+                            ("unmounted".to_string(), None)
+                        }
+                    }
+                };
+
+                let remote_name = remote_path.split(':').next().unwrap_or("").to_string();
+
+                RcloneMountInfo {
+                    name: remote_name,
+                    process_id,
+                    remote_path,
+                    mount_point,
+                    status,
+                    error_msg,
+                }
+            });
+        }
+    }
+
+    let mut mount_infos = Vec::new();
+    while let Some(res) = set.join_next().await {
+        if let Ok(info) = res {
+            mount_infos.push(info);
+        }
+    }
+
+    mount_infos.sort_by(|a, b| a.name.cmp(&b.name));
+
+    Ok(mount_infos)
+}
+
+pub async fn stop_all_rclone_mounts() -> Result<(), String> {
+    let process_list = PROCESS_MANAGER.list();
+    for process in process_list {
+        if process.id.starts_with("rclone_mount_") && process.is_running {
+            PROCESS_MANAGER.stop(&process.id)?;
+        }
+    }
+    Ok(())
+}
