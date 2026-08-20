@@ -50,9 +50,9 @@ If `/115` belongs to another driver, the service returns `STORAGE_CONFLICT` and 
 
 ## 9. Token persistence
 
-Refresh callbacks in `Open115` update the in-memory Token Pair under `tokenPersistenceMu`, increment `tokenPersistenceGeneration`, then persist a copied Addition through `SaveStorageAdditionSnapshot`. Each save records its generation and abandons stale work before another attempt. A write mutex serializes database writes so a newer Pair is the final writer. That path calls `db.UpdateStorageAddition`, which updates only the `addition` column. The existing `MustSaveDriverStorage` behavior remains available for unrelated driver lifecycle saves.
+Refresh callbacks in `Open115` update the in-memory Token Pair under `tokenPersistenceMu`, increment `tokenPersistenceGeneration`, then persist a copied Addition through `SaveStorageAdditionSnapshot`. A non-empty pair loaded during initialization starts at generation `1`; Import and CodeToToken both use the same atomic Pair provisioning path. Each save records its generation and abandons stale work before another attempt. A write mutex serializes database writes so a newer Pair is the final writer. That path calls `db.UpdateStorageAddition`, which updates only the `addition` column. The existing `MustSaveDriverStorage` behavior remains available for unrelated driver lifecycle saves.
 
-Persistence uses exactly three local attempts with delays of `0`, `100ms`, and `500ms`. The pair in memory remains authoritative if all attempts fail; the observable persistence state becomes `FAILED`, and the log emits only `token pair persistence failed`. A later retry saves the current pair, never an older snapshot. There is no claim of crash-safe transactional coordination across the SDK, database, and process boundary.
+Persistence uses exactly three local attempts with delays of `0`, `100ms`, and `500ms`. The pair in memory remains authoritative if all attempts fail; the observable persistence state becomes `FAILED`, and the log emits only `115 token persistence failed` with `storage_id` and `state` fields. Token and authorization material is never included. A later retry saves the current pair, never an older snapshot. There is no claim of crash-safe transactional coordination across the SDK, database, and process boundary.
 
 ## 10. Failure and response safety
 

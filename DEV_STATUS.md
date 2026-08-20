@@ -78,7 +78,7 @@ read-only media drive
 - Added context-aware refresh cancellation, `RefreshStatus`, Token Pair circuit reset rules, and offline resilience tests.
 - Added Ubuntu GitHub Actions normal and Race jobs for the offline refresh test subset.
 - Added Core 115 PKCE/device-code authorization sessions, explicit single-flight completion, token import fallback, managed `/115` provisioning, and admin-only authorization APIs.
-- Added Addition-only Token Pair persistence with bounded retry, visible persistence state, latest-pair retry semantics, and DB narrow-write coverage.
+- Added Addition-only Token Pair persistence with bounded retry, visible persistence state, strict generation ordering, latest-wins retry semantics, safe failure logging, and DB narrow-write coverage.
 - Verified SDK tests, repeated stress tests, and Core compatibility checks; Race validation is environment-blocked because the local Windows toolchain lacks `gcc`.
 
 Blocked:
