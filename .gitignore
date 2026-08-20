@@ -1,0 +1,16 @@
+# Project-local development toolchain.
+.tools/
+
+# Generated build and dependency outputs.
+**/node_modules/
+**/target/
+**/dist/
+**/binary/
+**/build/
+**/.cache/
+**/coverage/
+*.log
+
+# Windows/editor noise.
+Thumbs.db
+.DS_Store
