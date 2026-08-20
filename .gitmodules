@@ -1,6 +1,0 @@
-[submodule "core"]
-	path = core
-	url = https://github.com/OpenListTeam/OpenList.git
-[submodule "desktop"]
-	path = desktop
-	url = https://github.com/OpenListTeam/OpenList-Desktop.git
