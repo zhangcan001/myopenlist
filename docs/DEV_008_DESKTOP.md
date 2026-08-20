@@ -32,6 +32,9 @@ Core routes used by the desktop are:
 - `GET /api/admin/media-drive/status`
 - `POST /api/admin/media-drive/start`
 - `POST /api/admin/media-drive/stop`
+- `GET /api/admin/media-drive/115/auth/capabilities`
+- `POST /api/admin/media-drive/115/auth/start`
+- `POST /api/admin/media-drive/115/auth/complete`
 - `GET /api/admin/media-drive/mount/profile`
 - `POST /api/admin/media-drive/mount/profile`
 
@@ -60,6 +63,12 @@ startup option in browser-local desktop configuration. The WebDAV password,
 If the app is restarted, the WebDAV password must be entered again when the
 mount needs it. This is the deliberate consequence of not saving a plaintext
 password.
+
+When 115 is not connected, the home card shows `授权 115`. Clicking it starts
+the existing Core authorization session and opens its QR page in the system
+browser. Scan the QR code with the 115 app, then return to the desktop app and
+click `完成授权`. The authorization session id is kept in memory only. Core
+must have a valid `OPENLIST_115_CLIENT_ID` configured before starting this flow.
 
 ## Requirements and manual acceptance
 

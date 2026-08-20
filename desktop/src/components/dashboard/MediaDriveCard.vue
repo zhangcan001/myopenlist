@@ -51,6 +51,30 @@
       <span v-if="stopped" class="text-xs text-secondary">{{ t('dashboard.mediaDrive.stopped') }}</span>
     </div>
 
+    <div v-if="!authReady" class="flex flex-wrap items-center justify-between gap-3 rounded-md border border-accent/40 bg-accent/5 p-4">
+      <div>
+        <div class="text-sm font-semibold text-main">{{ t('dashboard.mediaDrive.authTitle') }}</div>
+        <div class="mt-1 text-xs text-secondary">{{ t('dashboard.mediaDrive.authHint') }}</div>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <CustomButton
+          type="secondary"
+          :icon="QrCode"
+          :text="authorizationPending ? t('dashboard.mediaDrive.qrOpened') : t('dashboard.mediaDrive.authorize115')"
+          :disabled="isBusy || authorizing || authorizationPending"
+          @click="authorize115"
+        />
+        <CustomButton
+          v-if="authorizationPending"
+          type="primary"
+          :icon="CircleCheck"
+          :text="t('dashboard.mediaDrive.completeAuthorization')"
+          :disabled="authorizing"
+          @click="complete115Authorization"
+        />
+      </div>
+    </div>
+
     <div v-if="!config.configured" class="rounded-md border border-accent/40 bg-accent/5 p-4">
       <div class="mb-3 flex items-center gap-2">
         <Settings2 :size="17" class="text-accent" />
@@ -145,7 +169,7 @@
 </template>
 
 <script setup lang="ts">
-import { CircleAlert, CircleCheck, ExternalLink, HardDrive, Play, Settings2, Square } from 'lucide-vue-next'
+import { CircleAlert, CircleCheck, ExternalLink, HardDrive, Play, QrCode, Settings2, Square } from 'lucide-vue-next'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, ref } from 'vue'
 
@@ -155,8 +179,20 @@ import CustomButton from '../common/CustomButton.vue'
 
 const { t } = useTranslation()
 const mediaDriveStore = useMediaDriveStore()
-const { state, environment, health, error, config, driveLetter, isReady, isBusy, stopped, stopping } =
-  storeToRefs(mediaDriveStore)
+const {
+  state,
+  environment,
+  health,
+  error,
+  config,
+  driveLetter,
+  isReady,
+  isBusy,
+  authorizationPending,
+  authorizing,
+  stopped,
+  stopping,
+} = storeToRefs(mediaDriveStore)
 const webdavPassword = ref('')
 const driveInput = ref(driveLetter.value)
 const autoStartInput = ref(config.value.autoStart)
@@ -204,8 +240,13 @@ const start = async () => {
 
 const stop = () => mediaDriveStore.stop()
 const openVlc = () => mediaDriveStore.openVlc()
+const authorize115 = () => mediaDriveStore.authorize115()
+const complete115Authorization = () => mediaDriveStore.complete115Authorization()
 
-onMounted(() => {
-  if (state.value === 'APP_STARTING') void mediaDriveStore.initialize()
+onMounted(async () => {
+  if (state.value === 'APP_STARTING') await mediaDriveStore.initialize()
+  if (environment.value.winfsp_installed && !authReady.value && !authorizationPending.value && !mediaDriveStore.authPrompted) {
+    void mediaDriveStore.authorize115()
+  }
 })
 </script>

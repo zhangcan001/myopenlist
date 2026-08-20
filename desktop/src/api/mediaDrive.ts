@@ -20,6 +20,26 @@ export interface MediaDriveMountProfile {
   auto_reconnect: boolean
 }
 
+export interface MediaDrive115Capabilities {
+  pkce_available: boolean
+  token_import_available: boolean
+  client_configured: boolean
+}
+
+export interface MediaDrive115AuthSession {
+  session_id: string
+  state: string
+  qr_code?: string
+  expires_at: string
+}
+
+export interface MediaDrive115StorageResult {
+  storage_id: number
+  mount_path: string
+  connected: boolean
+  state: string
+}
+
 export class MediaDriveError extends Error {
   readonly code: string
 
@@ -131,6 +151,24 @@ export class MediaDriveClient {
 
   stop(): Promise<MediaDriveStatus> {
     return this.request<MediaDriveStatus>('admin/media-drive/stop', { method: 'POST' })
+  }
+
+  authCapabilities(): Promise<MediaDrive115Capabilities> {
+    return this.request<MediaDrive115Capabilities>('admin/media-drive/115/auth/capabilities')
+  }
+
+  start115Auth(): Promise<MediaDrive115AuthSession> {
+    return this.request<MediaDrive115AuthSession>('admin/media-drive/115/auth/start', {
+      method: 'POST',
+      body: '{}',
+    })
+  }
+
+  complete115Auth(sessionId: string): Promise<MediaDrive115StorageResult> {
+    return this.request<MediaDrive115StorageResult>('admin/media-drive/115/auth/complete', {
+      method: 'POST',
+      body: JSON.stringify({ session_id: sessionId }),
+    })
   }
 
   mountProfile(): Promise<MediaDriveMountProfile> {

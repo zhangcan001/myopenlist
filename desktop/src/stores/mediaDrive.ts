@@ -50,10 +50,14 @@ export const useMediaDriveStore = defineStore('mediaDrive', () => {
   const stopped = ref(false)
   const stopping = ref(false)
   const initializing = ref(false)
+  const authSessionId = ref<string>()
+  const authorizing = ref(false)
+  const authPrompted = ref(false)
 
   const driveLetter = computed(() => config.value.driveLetter)
   const isReady = computed(() => state.value === 'RUNNING' && health.value?.healthy === true)
   const isBusy = computed(() => stopping.value || ['APP_STARTING', 'CHECKING_ENV', 'STARTING'].includes(state.value))
+  const authorizationPending = computed(() => Boolean(authSessionId.value))
 
   function saveConfig(): void {
     localStorage.setItem(storageKey, JSON.stringify(config.value))
@@ -203,6 +207,49 @@ export const useMediaDriveStore = defineStore('mediaDrive', () => {
     }
   }
 
+  async function authorize115(): Promise<void> {
+    authPrompted.value = true
+    authorizing.value = true
+    error.value = undefined
+    try {
+      await ensureCore()
+      const client = new MediaDriveClient(appStore.openListCoreUrl)
+      const capabilities = await client.authCapabilities()
+      if (!capabilities.client_configured) {
+        setError('CONFIG_REQUIRED')
+        return
+      }
+      const session = await client.start115Auth()
+      if (!session.qr_code) throw new MediaDriveError('QR_UNAVAILABLE')
+      authSessionId.value = session.session_id
+      await TauriAPI.files.urlInBrowser(session.qr_code)
+    } catch (caught) {
+      setError(errorCode(caught))
+    } finally {
+      authorizing.value = false
+    }
+  }
+
+  async function complete115Authorization(): Promise<void> {
+    if (!authSessionId.value) return
+    authorizing.value = true
+    error.value = undefined
+    try {
+      const client = new MediaDriveClient(appStore.openListCoreUrl)
+      await client.complete115Auth(authSessionId.value)
+      authSessionId.value = undefined
+      await refreshHealth()
+    } catch (caught) {
+      const code = errorCode(caught)
+      if (['SESSION_EXPIRED', 'EXCHANGE_FAILED', 'PERSISTENCE_FAILED', 'STATE_CONFLICT'].includes(code)) {
+        authSessionId.value = undefined
+      }
+      setError(code)
+    } finally {
+      authorizing.value = false
+    }
+  }
+
   function saveUserConfig(drive: string, autoStart: boolean): boolean {
     const normalized = normalizeDriveLetter(drive)
     if (!normalized) {
@@ -233,12 +280,17 @@ export const useMediaDriveStore = defineStore('mediaDrive', () => {
     driveLetter,
     isReady,
     isBusy,
+    authorizationPending,
+    authorizing,
+    authPrompted,
     stopped,
     stopping,
     initialize,
     refreshHealth,
     start,
     stop,
+    authorize115,
+    complete115Authorization,
     saveUserConfig,
     openVlc,
   }

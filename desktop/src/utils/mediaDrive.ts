@@ -40,6 +40,34 @@ const safeDiagnostics: Record<string, UserDiagnostic> = {
     message: '115 登录状态异常，请重新授权。',
     suggestion: '打开 OpenList 网页完成 115 授权，然后重试。',
   },
+  CONFIG_REQUIRED: {
+    message: '115 授权尚未配置。',
+    suggestion: '配置有效的 OPENLIST_115_CLIENT_ID 后重启核心服务。',
+  },
+  QR_UNAVAILABLE: {
+    message: '115 授权二维码不可用。',
+    suggestion: '检查核心服务配置后重试授权。',
+  },
+  SESSION_EXPIRED: {
+    message: '115 授权已过期。',
+    suggestion: '重新点击“授权 115”并扫码。',
+  },
+  EXCHANGE_FAILED: {
+    message: '115 授权失败。',
+    suggestion: '重新扫码并点击“完成授权”。',
+  },
+  PERSISTENCE_FAILED: {
+    message: '115 登录状态保存失败。',
+    suggestion: '重新授权并等待保存完成。',
+  },
+  STORAGE_CONFLICT: {
+    message: '115 存储配置冲突。',
+    suggestion: '检查现有 /115 存储配置后重试。',
+  },
+  STORAGE_INIT_FAILED: {
+    message: '115 存储初始化失败。',
+    suggestion: '检查核心日志后重试。',
+  },
   TOKEN_PERSISTENCE_FAILED: {
     message: '115 登录状态异常，请重新授权。',
     suggestion: '重新完成 115 授权并等待令牌保存完成。',
