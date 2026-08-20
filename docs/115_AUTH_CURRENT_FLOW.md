@@ -1,6 +1,6 @@
-# 115 authentication flow audit
+# 115 authentication flow audit and current integration
 
-This document preserves the DEV-001 baseline audit. The vendored SDK implementation now includes the DEV-002 coordination delta described below.
+This document preserves the DEV-001 baseline audit and records the current DEV-004 integration. Historical source-audit statements below that describe Core as “not integrated” refer to the pre-DEV-004 baseline.
 
 ## Scope and evidence
 
@@ -17,17 +17,21 @@ This is a static audit of the local core source and the local SDK source for `gi
 - Concurrent auth failures share one in-flight refresh; requests that observe a newer generation skip a second refresh and retry with the new access token.
 - Waiters receive the same refresh success or failure, and the refresh callback runs once per committed token pair.
 
+## DEV-004 current Core integration
+
+The current implementation adds `core/internal/media_drive/auth115`, an admin-only PKCE/device-code session service, SDK provider adapter, token import fallback, managed `/115` provisioning, and safe response types. `Open115` now snapshots the current Token Pair under `tokenPersistenceMu` and persists refresh rotations through the narrow `addition`-only DB update with bounded local retries. See `docs/DEV_004_115_AUTHORIZATION.md` for the contract and production-verification boundary.
+
 The remaining capability table and source citations describe the pre-DEV-002 v0.2.6 baseline.
 
 ## Dependency status
 
-`core/go.mod` requires `github.com/OpenListTeam/115-sdk-go v0.2.6` at line 153. The only 115 SDK replacement is commented out at line 325:
+`core/go.mod` requires `github.com/OpenListTeam/115-sdk-go v0.2.6` and uses the repository-local replacement:
 
 ```text
-// replace github.com/OpenListTeam/115-sdk-go => ../../OpenListTeam/115-sdk-go
+replace github.com/OpenListTeam/115-sdk-go => ../third_party/115-sdk-go
 ```
 
-Therefore the effective status is: **SDK v0.2.6, no active replace**. The SDK source's own `go.mod` identifies module `github.com/OpenListTeam/115-sdk-go` and requires Go 1.23.4 plus `resty.dev/v3 v3.0.0-beta.1` (`C:\Users\ADMIN\AppData\Local\Temp\openlist-115-sdk-go-v0.2.6\go.mod:1-6`).
+Therefore the effective status is: **SDK v0.2.6 with the local vendored replacement**. The SDK source's own `go.mod` identifies module `github.com/OpenListTeam/115-sdk-go` and requires Go 1.23.4 plus `resty.dev/v3 v3.0.0-beta.1`.
 
 ## Core `115_open` implementation
 
@@ -126,4 +130,4 @@ These answers are limited to what the local source proves. Anything requiring li
 
 ### Conclusion
 
-**FEASIBLE WITH OWN CLIENT_ID.** The local SDK contains the request, QR-status, and code-to-token primitives, but the caller must own/provide a valid `client_id` and preserve the verifier. Core `115_open` does not integrate this flow, does not persist `CodeToToken` results through its existing callback, and would need explicit orchestration plus storage handling. Production feasibility and status/expiry semantics remain **UNKNOWN — requires official 115 API verification**.
+**IMPLEMENTED WITH OWN CLIENT_ID.** The local SDK primitives are now connected through the DEV-004 Core service. The caller must still provide an approved `client_id`, and production QR/status/expiry semantics, real token rotation, and Windows media-drive acceptance remain **PENDING — requires controlled official 115 API verification**.

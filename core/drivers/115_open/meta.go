@@ -23,6 +23,8 @@ var config = driver.Config{
 	LinkCacheMode: driver.LinkCacheUA,
 }
 
+func ConfigName() string { return config.Name }
+
 func init() {
 	op.RegisterDriver(func() driver.Driver {
 		return &Open115{}

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	sdk "github.com/OpenListTeam/115-sdk-go"
@@ -27,9 +28,27 @@ import (
 type Open115 struct {
 	model.Storage
 	Addition
-	client     *sdk.Client
-	limiter    *rate.Limiter
-	parentPath string
+	client               *sdk.Client
+	limiter              *rate.Limiter
+	parentPath           string
+	tokenPersistenceMu   sync.Mutex
+	persistenceState     TokenPersistenceState
+	persistenceAttempts  int
+	persistenceLastError string
+}
+
+type TokenPersistenceState string
+
+const (
+	TokenPersistenceClean    TokenPersistenceState = "CLEAN"
+	TokenPersistenceRetrying TokenPersistenceState = "RETRYING"
+	TokenPersistenceFailed   TokenPersistenceState = "FAILED"
+)
+
+type TokenPersistenceStatus struct {
+	State     TokenPersistenceState
+	Attempts  int
+	LastError string
 }
 
 func (d *Open115) Config() driver.Config {
@@ -41,12 +60,13 @@ func (d *Open115) GetAddition() driver.Additional {
 }
 
 func (d *Open115) Init(ctx context.Context) error {
-	d.client = sdk.New(sdk.WithRefreshToken(d.Addition.RefreshToken),
-		sdk.WithAccessToken(d.Addition.AccessToken),
+	d.tokenPersistenceMu.Lock()
+	accessToken, refreshToken := d.Addition.AccessToken, d.Addition.RefreshToken
+	d.tokenPersistenceMu.Unlock()
+	d.client = sdk.New(sdk.WithRefreshToken(refreshToken),
+		sdk.WithAccessToken(accessToken),
 		sdk.WithOnRefreshToken(func(s1, s2 string) {
-			d.Addition.AccessToken = s1
-			d.Addition.RefreshToken = s2
-			op.MustSaveDriverStorage(d)
+			d.persistRotatedTokenPair(s1, s2)
 		}))
 	if flags.Debug || flags.Dev {
 		d.client.SetDebug(true)
@@ -84,6 +104,89 @@ func (d *Open115) Init(ctx context.Context) error {
 			} else {
 				d.parentPath = stdpath.Join("/", parentPathInfo.FileName, d.parentPath)
 			}
+		}
+	}
+	return nil
+}
+
+// SetTokenPair replaces the in-memory pair before a managed storage reload.
+func (d *Open115) SetTokenPair(accessToken, refreshToken string) {
+	d.tokenPersistenceMu.Lock()
+	d.Addition.AccessToken = accessToken
+	d.Addition.RefreshToken = refreshToken
+	d.persistenceState = TokenPersistenceClean
+	d.persistenceAttempts = 0
+	d.persistenceLastError = ""
+	d.tokenPersistenceMu.Unlock()
+}
+
+func (d *Open115) TokenPersistenceStatus() TokenPersistenceStatus {
+	d.tokenPersistenceMu.Lock()
+	defer d.tokenPersistenceMu.Unlock()
+	state := d.persistenceState
+	if state == "" {
+		state = TokenPersistenceClean
+	}
+	return TokenPersistenceStatus{
+		State:     state,
+		Attempts:  d.persistenceAttempts,
+		LastError: d.persistenceLastError,
+	}
+}
+
+func (d *Open115) RetryTokenPersistence() error {
+	d.tokenPersistenceMu.Lock()
+	defer d.tokenPersistenceMu.Unlock()
+	return d.persistTokenPairLocked(d.Addition.AccessToken, d.Addition.RefreshToken)
+}
+
+func (d *Open115) persistRotatedTokenPair(accessToken, refreshToken string) {
+	d.tokenPersistenceMu.Lock()
+	defer d.tokenPersistenceMu.Unlock()
+	d.Addition.AccessToken = accessToken
+	d.Addition.RefreshToken = refreshToken
+	// The current in-memory pair remains authoritative; status makes a
+	// database failure visible without logging credentials.
+	_ = d.persistTokenPairLocked(accessToken, refreshToken)
+}
+
+func (d *Open115) persistTokenPairLocked(accessToken, refreshToken string) error {
+	return d.persistTokenPairLockedWith(accessToken, refreshToken, func(addition driver.Additional) error {
+		return op.SaveStorageAdditionSnapshot(d.Storage.ID, addition)
+	}, time.Sleep)
+}
+
+func (d *Open115) persistTokenPairLockedWith(accessToken, refreshToken string, save func(driver.Additional) error, sleep func(time.Duration)) error {
+	d.persistenceState = TokenPersistenceRetrying
+	d.persistenceLastError = ""
+	var attempts int
+	err := retryPersistence(func() error {
+		attempts++
+		d.persistenceAttempts = attempts
+		addition := d.Addition
+		addition.AccessToken = accessToken
+		addition.RefreshToken = refreshToken
+		return save(&addition)
+	}, sleep)
+	if err != nil {
+		d.persistenceState = TokenPersistenceFailed
+		d.persistenceLastError = "storage addition persistence failed"
+		return err
+	}
+	d.persistenceState = TokenPersistenceClean
+	d.persistenceLastError = ""
+	return nil
+}
+
+func retryPersistence(save func() error, sleep func(time.Duration)) error {
+	for attempt, delay := range []time.Duration{0, 100 * time.Millisecond, 500 * time.Millisecond} {
+		if delay > 0 {
+			sleep(delay)
+		}
+		if err := save(); err == nil {
+			return nil
+		} else if attempt == 2 {
+			return err
 		}
 	}
 	return nil

@@ -22,6 +22,12 @@ func UpdateStorage(storage *model.Storage) error {
 	return errors.WithStack(db.Save(storage).Error)
 }
 
+// UpdateStorageAddition updates only the driver addition JSON. Token rotation
+// must not overwrite unrelated storage fields changed by another request.
+func UpdateStorageAddition(id uint, addition string) error {
+	return errors.WithStack(db.Model(&model.Storage{}).Where("id = ?", id).Update("addition", addition).Error)
+}
+
 // DeleteStorageById just delete storage from database by id
 func DeleteStorageById(id uint) error {
 	return errors.WithStack(db.Delete(&model.Storage{}, id).Error)

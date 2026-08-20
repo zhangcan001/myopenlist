@@ -27,6 +27,12 @@ FROZEN
 DEV-003:
 COMPLETE
 
+DEV-004:
+COMPLETE
+
+DEV-004 Production Verification:
+REAL_115_NOT_YET_TESTED
+
 Repository:
 single-repository subtree layout
 
@@ -68,6 +74,8 @@ read-only media drive
 - Added conservative refresh error classification, bounded retry/backoff/jitter, `Retry-After` cooldown, and circuit states.
 - Added context-aware refresh cancellation, `RefreshStatus`, Token Pair circuit reset rules, and offline resilience tests.
 - Added Ubuntu GitHub Actions normal and Race jobs for the offline refresh test subset.
+- Added Core 115 PKCE/device-code authorization sessions, explicit single-flight completion, token import fallback, managed `/115` provisioning, and admin-only authorization APIs.
+- Added Addition-only Token Pair persistence with bounded retry, visible persistence state, latest-pair retry semantics, and DB narrow-write coverage.
 - Verified SDK tests, repeated stress tests, and Core compatibility checks; Race validation is environment-blocked because the local Windows toolchain lacks `gcc`.
 
 Blocked:
@@ -76,6 +84,6 @@ Blocked:
 - No real 115 account login, token refresh, WebDAV mount, WinFsp drive mount, VLC playback, or media acceptance run was performed. This is intentional for DEV-001.
 
 Next:
-DEV-004
+DEV-005
 
-115 Authorization + Token Persistence Integration
+Managed WebDAV + Localhost Service Profile

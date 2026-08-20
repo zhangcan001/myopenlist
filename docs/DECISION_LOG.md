@@ -36,3 +36,15 @@ DEV-003 refresh resilience decisions:
 - **ADR-028:** Refresh circuit state is `CLOSED`, `OPEN`, `HALF_OPEN`, or `AUTH_REQUIRED`; only one half-open probe is allowed, and permanent auth failure fast-fails until a new Token Pair is installed.
 - **ADR-029:** A changed refresh token, `CodeToToken`, or an accepted refresh Token Pair resets the circuit. Access-token-only replacement does not clear `AUTH_REQUIRED`.
 - **ADR-030:** `RefreshStatus` exposes state, last error kind, and retry time only. It is thread-safe and must not expose access tokens, refresh tokens, or generation.
+
+DEV-004 authorization and persistence decisions:
+
+- **ADR-031:** The Core authorization service owns PKCE session state; the SDK remains the provider adapter and does not own the verifier.
+- **ADR-032:** Session IDs and PKCE verifiers use 32 bytes from `crypto/rand` with URL-safe base64 encoding; verifiers and QR sign values are memory-only.
+- **ADR-033:** The approved client ID is configuration-only: `OPENLIST_115_CLIENT_ID` overrides `BuiltinClientID`, and an empty value returns `CONFIG_REQUIRED`.
+- **ADR-034:** QR status is passed through unchanged; Core does not guess undocumented provider status meanings.
+- **ADR-035:** Explicit `complete` is the only QR token exchange operation, and concurrent completion calls share one session exchange.
+- **ADR-036:** Successful authorization or token import provisions one managed `/115` storage with driver `115 Open`; an existing different driver is a hard `STORAGE_CONFLICT`.
+- **ADR-037:** Existing `115 Open` storage is updated by changing only access/refresh fields in Addition JSON; storage fields and unrelated Addition configuration are preserved.
+- **ADR-038:** Token refresh persistence uses an Addition-only DB update, three bounded local attempts, visible failure state, and latest in-memory Token Pair wins without rollback.
+- **ADR-039:** Authorization API responses and new error messages never expose access tokens, refresh tokens, PKCE verifier, QR sign, UID, client ID, or app secret.

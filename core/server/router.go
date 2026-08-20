@@ -170,6 +170,16 @@ func admin(g *gin.RouterGroup) {
 	setting.POST("/set_thunder_browser", handles.SetThunderBrowser)
 	setting.POST("/set_guangyapan", handles.SetGuangYaPan)
 
+	mediaDrive115 := g.Group("/media-drive/115")
+	mediaDrive115.GET("/auth/capabilities", handles.MediaDrive115AuthCapabilities)
+	mediaDrive115.POST("/auth/start", handles.MediaDrive115AuthStart)
+	mediaDrive115.GET("/auth/status", handles.MediaDrive115AuthStatus)
+	mediaDrive115.POST("/auth/complete", handles.MediaDrive115AuthComplete)
+	mediaDrive115.POST("/auth/cancel", handles.MediaDrive115AuthCancel)
+	mediaDrive115.POST("/auth/import", handles.MediaDrive115AuthImport)
+	mediaDrive115.GET("/status", handles.MediaDrive115Status)
+	mediaDrive115.POST("/persistence/retry", handles.MediaDrive115PersistenceRetry)
+
 	// retain /admin/task API to ensure compatibility with legacy automation scripts
 	_task(g.Group("/task"))
 

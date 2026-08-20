@@ -293,6 +293,15 @@ func MustSaveDriverStorage(driver driver.Driver) {
 	}
 }
 
+// SaveStorageAdditionSnapshot persists only an already-copied Addition.
+func SaveStorageAdditionSnapshot(storageID uint, addition driver.Additional) error {
+	str, err := utils.Json.MarshalToString(addition)
+	if err != nil {
+		return errors.Wrap(err, "error while marshal addition")
+	}
+	return db.UpdateStorageAddition(storageID, str)
+}
+
 func saveDriverStorage(driver driver.Driver) error {
 	storage := driver.GetStorage()
 	addition := driver.GetAddition()
