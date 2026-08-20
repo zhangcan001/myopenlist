@@ -251,7 +251,16 @@ impl ProcessManager {
     ) -> bool {
         let actual_exe = proc.exe();
         if let Some(exe_path) = actual_exe {
-            if exe_path.to_string_lossy() != expected_cmd {
+            let actual_exe = exe_path
+                .to_string_lossy()
+                .trim_matches('"')
+                .replace('/', "\\")
+                .to_ascii_lowercase();
+            let expected_exe = expected_cmd
+                .trim_matches('"')
+                .replace('/', "\\")
+                .to_ascii_lowercase();
+            if actual_exe != expected_exe {
                 return false;
             }
         } else {
@@ -263,27 +272,22 @@ impl ProcessManager {
         if actual_args.is_empty() {
             return false;
         }
-
-        let actual_args_slice = &actual_args[1..];
-
-        if expected_args.len() > actual_args_slice.len() {
-            return false;
+        if expected_args.is_empty() {
+            return true;
         }
 
-        for (i, expected_arg) in expected_args.iter().enumerate() {
-            let actual_arg_str = actual_args_slice[i].to_string_lossy();
+        actual_args.windows(expected_args.len()).any(|window| {
+            window
+                .iter()
+                .zip(expected_args.iter())
+                .all(|(actual_arg, expected_arg)| {
+                    let normalized_actual = actual_arg.to_string_lossy().replace("\\\\", "\\");
+                    let normalized_expected = expected_arg.replace("\\\\", "\\");
 
-            let normalized_actual = actual_arg_str.replace("\\\\", "\\");
-            let normalized_expected = expected_arg.replace("\\\\", "\\");
-
-            if normalized_actual != normalized_expected
-                && !normalized_actual.contains(&normalized_expected)
-            {
-                return false;
-            }
-        }
-
-        true
+                    normalized_actual == normalized_expected
+                        || normalized_actual.contains(&normalized_expected)
+                })
+        })
     }
 
     fn persist_state(&self) {
@@ -451,7 +455,10 @@ impl ProcessManager {
 
     pub fn adopt_running(&self, config: ProcessConfig) -> Result<Option<ProcessInfo>, String> {
         if self.is_registered(&config.id) {
-            return Ok(None);
+            if self.is_running(&config.id) {
+                return Ok(None);
+            }
+            let _ = self.remove(&config.id);
         }
 
         let mut sys = System::new_all();

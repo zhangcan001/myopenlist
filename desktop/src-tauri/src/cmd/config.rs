@@ -3,7 +3,9 @@ use std::path::PathBuf;
 
 use tauri::State;
 
-use crate::cmd::openlist_core::{get_openlist_core_process_status, start_openlist_core};
+use crate::cmd::openlist_core::{
+    get_openlist_core_process_status, start_openlist_core, stop_openlist_core,
+};
 use crate::conf::config::MergedSettings;
 use crate::object::structs::AppState;
 use crate::utils::path::{app_config_file_path, get_default_openlist_data_dir};
@@ -81,6 +83,7 @@ pub async fn save_settings_and_restart(
     if let Ok(info) = get_openlist_core_process_status().await
         && info.is_running
     {
+        stop_openlist_core(state.clone()).await?;
         start_openlist_core(state.clone()).await?;
     }
 

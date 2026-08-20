@@ -69,10 +69,10 @@ pub fn check_media_drive_environment() -> MediaDriveEnvironment {
                 candidates.push(PathBuf::from(root).join("WinFsp/bin/winfsp-x64.dll"));
             }
         }
-        return MediaDriveEnvironment {
+        MediaDriveEnvironment {
             windows: true,
             winfsp_installed: candidates.iter().any(|path| path.is_file()),
-        };
+        }
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -140,7 +140,7 @@ pub async fn open_vlc_drive(drive_letter: String) -> Result<bool, String> {
         command.creation_flags(0x08000000);
         command.arg("--no-playlist-autostart").arg(&drive_path);
         command.spawn().map_err(|_| "VLC_UNAVAILABLE".to_string())?;
-        return Ok(true);
+        Ok(true)
     }
 
     #[cfg(not(target_os = "windows"))]

@@ -1,12 +1,10 @@
-use tauri::State;
-use tokio::time::{Duration, sleep};
-
 use crate::conf::config::MergedSettings;
 use crate::core::process_manager::{PROCESS_MANAGER, ProcessConfig, ProcessInfo};
 use crate::object::structs::{AppState, ServiceStatus};
 use crate::utils::path::{
     get_app_logs_dir, get_default_openlist_data_dir, get_openlist_binary_path_with_custom,
 };
+use tauri::State;
 
 pub const OPENLIST_CORE_PROCESS_ID: &str = "openlist_core";
 
@@ -52,11 +50,14 @@ pub async fn start_openlist_core(state: State<'_, AppState>) -> Result<ProcessIn
     if !PROCESS_MANAGER.is_registered(OPENLIST_CORE_PROCESS_ID) {
         let _ = PROCESS_MANAGER.adopt_running(config.clone())?;
     }
+
+    if let Ok(info) = PROCESS_MANAGER.get_status(OPENLIST_CORE_PROCESS_ID)
+        && info.is_running
+    {
+        return Ok(info);
+    }
     if PROCESS_MANAGER.is_registered(OPENLIST_CORE_PROCESS_ID) {
-        let _ = PROCESS_MANAGER.stop(OPENLIST_CORE_PROCESS_ID);
-        sleep(Duration::from_millis(500)).await;
         let _ = PROCESS_MANAGER.remove(OPENLIST_CORE_PROCESS_ID);
-        sleep(Duration::from_millis(500)).await;
     }
 
     PROCESS_MANAGER.register_and_start(config)
@@ -70,6 +71,12 @@ pub async fn stop_openlist_core(state: State<'_, AppState>) -> Result<ProcessInf
     }
     if !PROCESS_MANAGER.is_registered(OPENLIST_CORE_PROCESS_ID) {
         return Err("OpenList Core process is not running.".into());
+    }
+    if let Ok(info) = PROCESS_MANAGER.get_status(OPENLIST_CORE_PROCESS_ID)
+        && !info.is_running
+    {
+        PROCESS_MANAGER.remove(OPENLIST_CORE_PROCESS_ID)?;
+        return Ok(info);
     }
     let raw_info = PROCESS_MANAGER.stop(OPENLIST_CORE_PROCESS_ID);
     PROCESS_MANAGER.remove(OPENLIST_CORE_PROCESS_ID)?;
@@ -90,10 +97,10 @@ pub async fn get_openlist_core_status(state: State<'_, AppState>) -> Result<Serv
         .read()
         .clone()
         .ok_or("Failed to read app settings")?;
-    if !PROCESS_MANAGER.is_registered(OPENLIST_CORE_PROCESS_ID) {
-        if let Ok(config) = build_openlist_config(state) {
-            let _ = PROCESS_MANAGER.adopt_running(config);
-        }
+    if !PROCESS_MANAGER.is_registered(OPENLIST_CORE_PROCESS_ID)
+        && let Ok(config) = build_openlist_config(state)
+    {
+        let _ = PROCESS_MANAGER.adopt_running(config);
     }
     let openlist_config = app_settings.openlist;
     let protocol = if openlist_config.ssl_enabled {
