@@ -48,3 +48,11 @@ DEV-004 authorization and persistence decisions:
 - **ADR-037:** Existing `115 Open` storage is updated by changing only access/refresh fields in Addition JSON; storage fields and unrelated Addition configuration are preserved.
 - **ADR-038:** Token refresh persistence uses an Addition-only DB update, three bounded local attempts, visible failure state, and latest in-memory Token Pair wins without rollback.
 - **ADR-039:** Authorization API responses and new error messages never expose access tokens, refresh tokens, PKCE verifier, QR sign, UID, client ID, or app secret.
+
+DEV-005 managed WebDAV decisions:
+
+- **ADR-040:** Managed WebDAV reuses the existing OpenList WebDAV implementation; the media-drive layer owns only profile, authentication, and service lifecycle.
+- **ADR-041:** The managed WebDAV listener binds to localhost only by default and rejects non-loopback clients.
+- **ADR-042:** Player access uses the existing HTTP Range streaming path so seek requests do not load an entire media file.
+- **ADR-043:** Managed WebDAV credentials are independent from 115 credentials and persist only as a password hash.
+- **ADR-044:** Windows drive mounting is deferred to DEV-006; DEV-005 provides no drive letter or WinFsp integration.

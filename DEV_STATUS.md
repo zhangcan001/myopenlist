@@ -36,6 +36,9 @@ COMPLETE
 DEV-004 Production Verification:
 REAL_115_NOT_TESTED
 
+DEV-005:
+COMPLETE
+
 Repository:
 single-repository subtree layout
 
@@ -79,6 +82,7 @@ read-only media drive
 - Added Ubuntu GitHub Actions normal and Race jobs for the offline refresh test subset.
 - Added Core 115 PKCE/device-code authorization sessions, explicit single-flight completion, token import fallback, managed `/115` provisioning, and admin-only authorization APIs.
 - Added Addition-only Token Pair persistence with bounded retry, visible persistence state, strict generation ordering, latest-wins retry semantics, safe failure logging, and DB narrow-write coverage.
+- Added a managed localhost WebDAV profile with private-setting persistence, independent bcrypt Basic Auth, lifecycle/status controls, HTTP Range streaming verification, and admin-only APIs.
 - Verified SDK tests, repeated stress tests, and Core compatibility checks; Race validation is environment-blocked because the local Windows toolchain lacks `gcc`.
 
 Blocked:
@@ -87,6 +91,6 @@ Blocked:
 - No real 115 account login, token refresh, WebDAV mount, WinFsp drive mount, VLC playback, or media acceptance run was performed. This is intentional for DEV-001.
 
 Next:
-DEV-005
+DEV-006
 
-Managed WebDAV + Localhost Service Profile
+Windows Mount Integration
