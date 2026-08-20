@@ -16,3 +16,6 @@
 - **ADR-014:** Ordinary users do not see WebDAV/Rclone technical configuration.
 
 These are architecture decisions only; no DEV-002 token coordinator or QR login was implemented.
+
+- **ADR-015:** Use a single-repository source layout. OpenList Core, Desktop, and the 115 SDK enter `myopenlist` as squashed subtree/vendor source. This supports one clone, branch, CI, release, and coordinated review.
+- **ADR-016:** Prefer a project-level portable Go toolchain. It is reproducible, requires no administrator permission, and avoids permanent system `PATH` or registry changes.

@@ -28,3 +28,10 @@ git tag --sort=-creatordate
 git describe --tags --abbrev=0
 git show -s --format='%cI' HEAD
 ```
+
+## Repository integration
+
+- Core integrated as a squashed subtree at `core/`, pinned to `0b1e9d0943780fec5d48ffffb25bf2ce2076f09a`.
+- Desktop integrated as a squashed subtree at `desktop/`, pinned to `7efcb538e7128a3281011604146137c3d178b369`.
+- 115 SDK integrated as a squashed subtree at `third_party/115-sdk-go/`, pinned to tag `v0.2.6`, commit `7799bb98e73949fc902c93c689677b1e640c365c`.
+- The parent repository no longer tracks `core` or `desktop` as gitlinks and no longer has `.gitmodules` entries for them.
