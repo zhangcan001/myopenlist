@@ -58,4 +58,4 @@ verification should confirm WinFsp installation, an unused `R:` letter, a
 running DEV-005 localhost WebDAV service, directory listing, bounded media
 reads, unmount, and reconnect behavior.
 
-DEV-007 is not started by this change.
+Workflow integration is documented separately in `docs/DEV_007_WORKFLOW.md`.
