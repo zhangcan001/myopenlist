@@ -65,6 +65,9 @@ func (d *Open115) GetAddition() driver.Additional {
 func (d *Open115) Init(ctx context.Context) error {
 	d.tokenPersistenceMu.Lock()
 	accessToken, refreshToken := d.Addition.AccessToken, d.Addition.RefreshToken
+	if d.tokenPersistenceGeneration == 0 && (accessToken != "" || refreshToken != "") {
+		d.tokenPersistenceGeneration = 1
+	}
 	d.tokenPersistenceMu.Unlock()
 	d.client = sdk.New(sdk.WithRefreshToken(refreshToken),
 		sdk.WithAccessToken(accessToken),
@@ -159,11 +162,9 @@ func (d *Open115) persistRotatedTokenPair(accessToken, refreshToken string) {
 	d.Addition.RefreshToken = refreshToken
 	generation := d.tokenPersistenceGeneration
 	d.tokenPersistenceMu.Unlock()
-	if err := d.persistTokenPair(accessToken, refreshToken, generation, func(addition driver.Additional) error {
+	d.persistTokenPair(accessToken, refreshToken, generation, func(addition driver.Additional) error {
 		return op.SaveStorageAdditionSnapshot(d.Storage.ID, addition)
-	}, time.Sleep); err != nil {
-		log.Warn("token pair persistence failed")
-	}
+	}, time.Sleep)
 }
 
 func (d *Open115) persistTokenPair(accessToken, refreshToken string, generation uint64, save func(driver.Additional) error, sleep func(time.Duration)) error {
@@ -195,17 +196,24 @@ func (d *Open115) persistTokenPair(accessToken, refreshToken string, generation 
 	}, sleep)
 
 	d.tokenPersistenceMu.Lock()
-	defer d.tokenPersistenceMu.Unlock()
 	if d.tokenPersistenceGeneration != generation || errors.Is(err, errTokenPersistenceSuperseded) {
+		d.tokenPersistenceMu.Unlock()
 		return nil
 	}
 	if err != nil {
 		d.persistenceState = TokenPersistenceFailed
 		d.persistenceLastError = "storage addition persistence failed"
+		storageID := d.Storage.ID
+		d.tokenPersistenceMu.Unlock()
+		log.WithFields(log.Fields{
+			"storage_id": storageID,
+			"state":      TokenPersistenceFailed,
+		}).Warn("115 token persistence failed")
 		return err
 	}
 	d.persistenceState = TokenPersistenceClean
 	d.persistenceLastError = ""
+	d.tokenPersistenceMu.Unlock()
 	return nil
 }
 
