@@ -2,8 +2,10 @@ package sdk
 
 import (
 	"context"
+	"math/rand"
 	"net/http"
 	"sync"
+	"time"
 
 	"resty.dev/v3"
 )
@@ -17,17 +19,29 @@ type tokenSnapshot struct {
 type Client struct {
 	client *resty.Client
 
-	tokenMu         sync.RWMutex
-	accessToken     string
-	refreshToken    string
-	tokenGeneration uint64
-	refresh         *refreshState
-	onRefreshToken  func(string, string)
+	tokenMu              sync.RWMutex
+	accessToken          string
+	refreshToken         string
+	tokenGeneration      uint64
+	refresh              *refreshState
+	onRefreshToken       func(string, string)
+	refreshCircuitState  RefreshCircuitState
+	refreshOpenUntil     time.Time
+	refreshLastErrorKind RefreshErrorKind
+	refreshPolicy        RefreshPolicy
+	now                  func() time.Time
+	sleeper              func(context.Context, time.Duration) error
+	randFloat            func() float64
 }
 
 func New(opts ...Option) *Client {
 	c := &Client{
-		client: resty.New(),
+		client:              resty.New(),
+		refreshCircuitState: RefreshCircuitClosed,
+		refreshPolicy:       DefaultRefreshPolicy(),
+		now:                 time.Now,
+		sleeper:             sleepContext,
+		randFloat:           rand.Float64,
 	}
 
 	for _, opt := range opts {
@@ -81,6 +95,7 @@ func (w *Client) SetRefreshToken(token string) *Client {
 	if w.refreshToken != token {
 		w.refreshToken = token
 		w.tokenGeneration++
+		w.resetRefreshCircuitLocked()
 	}
 	w.tokenMu.Unlock()
 	return w
@@ -103,15 +118,22 @@ func (w *Client) snapshotToken() tokenSnapshot {
 	}
 }
 
-// Internal authentication flows that rotate both tokens must use this atomic pair update.
-func (w *Client) setTokenPair(accessToken, refreshToken string, notify bool) {
-	w.tokenMu.Lock()
+func (w *Client) setTokenPairLocked(accessToken, refreshToken string, notify bool) func(string, string) {
 	w.accessToken = accessToken
 	w.refreshToken = refreshToken
 	w.tokenGeneration++
-	callback := w.onRefreshToken
-	w.tokenMu.Unlock()
+	w.resetRefreshCircuitLocked()
+	if notify {
+		return w.onRefreshToken
+	}
+	return nil
+}
 
+// Internal authentication flows that rotate both tokens must use this atomic pair update.
+func (w *Client) setTokenPair(accessToken, refreshToken string, notify bool) {
+	w.tokenMu.Lock()
+	callback := w.setTokenPairLocked(accessToken, refreshToken, notify)
+	w.tokenMu.Unlock()
 	if notify && callback != nil {
 		callback(accessToken, refreshToken)
 	}

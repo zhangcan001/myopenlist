@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"net/http"
+
+	"resty.dev/v3"
 )
 
 type AuthDeviceCodeResp struct {
@@ -81,61 +83,23 @@ func (c *Client) RefreshToken(ctx context.Context) (*RefreshTokenResp, error) {
 }
 
 type refreshState struct {
-	done   chan struct{}
-	resp   *RefreshTokenResp
-	err    error
-	joined int
+	done            chan struct{}
+	resp            *RefreshTokenResp
+	err             error
+	joined          int
+	startGeneration uint64
+	refreshToken    string
+	superseded      bool
+	committed       bool
 }
 
-func (c *Client) refreshIfNeeded(ctx context.Context, generation uint64) (*RefreshTokenResp, error) {
-	c.tokenMu.Lock()
-	if c.tokenGeneration != generation {
-		c.tokenMu.Unlock()
-		return nil, nil
-	}
-	return c.refreshLocked(ctx)
-}
-
-func (c *Client) refreshExplicit(ctx context.Context) (*RefreshTokenResp, error) {
-	c.tokenMu.Lock()
-	return c.refreshLocked(ctx)
-}
-
-func (c *Client) refreshLocked(ctx context.Context) (*RefreshTokenResp, error) {
-	if state := c.refresh; state != nil {
-		state.joined++
-		c.tokenMu.Unlock()
-		select {
-		case <-state.done:
-			return state.resp, state.err
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
-	}
-	state := &refreshState{done: make(chan struct{})}
-	c.refresh = state
-	refreshToken := c.refreshToken
-	c.tokenMu.Unlock()
-
-	resp, err := c.refreshTokenRequest(ctx, refreshToken)
-
-	c.tokenMu.Lock()
-	state.resp = resp
-	state.err = err
-	c.refresh = nil
-	close(state.done)
-	c.tokenMu.Unlock()
-	return resp, err
-}
-
-func (c *Client) refreshTokenRequest(ctx context.Context, refreshToken string) (*RefreshTokenResp, error) {
+func (c *Client) refreshTokenRequestRaw(ctx context.Context, refreshToken string) (*RefreshTokenResp, *resty.Response, error) {
 	var resp RefreshTokenResp
-	_, err := c.passportRequest(ctx, ApiRefreshToken, http.MethodPost, &resp, ReqWithForm(Form{
+	response, err := c.passportRequest(ctx, ApiRefreshToken, http.MethodPost, &resp, ReqWithForm(Form{
 		"refresh_token": refreshToken,
 	}))
 	if err != nil {
-		return nil, err
+		return nil, response, err
 	}
-	c.setTokenPair(resp.AccessToken, resp.RefreshToken, true)
-	return &resp, err
+	return &resp, response, nil
 }

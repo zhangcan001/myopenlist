@@ -26,3 +26,13 @@ DEV-001 architecture decisions are recorded above. DEV-002 and DEV-002.1 impleme
 - **ADR-021:** Refresh callback executes once per successful Token Pair rotation and runs after the token lock is released.
 - **ADR-022:** Refresh failure is shared only by the current in-flight cohort. Retry policy, cooldown, and resilience escalation belong to DEV-003.
 - **ADR-023:** Public explicit `RefreshToken` participates directly in RefreshCoordinator. This removes the token snapshot-to-flight-registration TOCTOU window.
+
+DEV-003 refresh resilience decisions:
+
+- **ADR-024:** A refresh flight captures Token Generation and refresh token before network I/O; the response may commit only when both still match. Stale responses return `ErrRefreshSuperseded` and cannot mutate tokens, generation, circuit state, or callbacks.
+- **ADR-025:** Refresh failures use a small conservative taxonomy: context, network, rate limit, server, auth required, permission, unknown, and superseded. Existing authenticated-request 99/401-prefix classification remains unchanged.
+- **ADR-026:** Only network and server refresh failures use bounded exponential backoff with jitter. Defaults are three attempts, 500 ms base, 4 s cap, and ±20% jitter; these are engineering defaults rather than official 115 limits.
+- **ADR-027:** A rate-limited refresh opens the circuit until `Retry-After` or a bounded fallback cooldown. It is never retried immediately.
+- **ADR-028:** Refresh circuit state is `CLOSED`, `OPEN`, `HALF_OPEN`, or `AUTH_REQUIRED`; only one half-open probe is allowed, and permanent auth failure fast-fails until a new Token Pair is installed.
+- **ADR-029:** A changed refresh token, `CodeToToken`, or an accepted refresh Token Pair resets the circuit. Access-token-only replacement does not clear `AUTH_REQUIRED`.
+- **ADR-030:** `RefreshStatus` exposes state, last error kind, and retry time only. It is thread-safe and must not expose access tokens, refresh tokens, or generation.

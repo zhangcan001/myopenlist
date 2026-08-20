@@ -20,15 +20,33 @@ func (c *Client) passportRequest(ctx context.Context, url, method string, respDa
 	if respData != nil {
 		resp.Data = respData
 	}
-	response, err := c.Request(ctx, url, method, append(opts, ReqWithResp(&resp))...)
+	response, err := c.Request(ctx, url, method, append(opts, func(request *resty.Request) {
+		request.SetResult(&resp).SetError(&resp)
+	})...)
 	if err != nil {
-		return nil, err
+		return response, err
 	}
 	if resp.Code != 0 {
-		return response, &PassportError{Code: resp.Code, Message: resp.Message}
+		passportErr := &PassportError{Code: resp.Code, Message: resp.Message}
+		if response != nil {
+			passportErr.HTTPStatus = response.StatusCode()
+			passportErr.RetryAfter = response.Header().Get("Retry-After")
+		}
+		return response, passportErr
 	}
 	if resp.Error != "" {
-		return response, &PassportError{APIError: resp.Error, Errno: resp.Errno}
+		passportErr := &PassportError{APIError: resp.Error, Errno: resp.Errno}
+		if response != nil {
+			passportErr.HTTPStatus = response.StatusCode()
+			passportErr.RetryAfter = response.Header().Get("Retry-After")
+		}
+		return response, passportErr
+	}
+	if response != nil && response.StatusCode() >= 400 {
+		return response, &PassportError{
+			HTTPStatus: response.StatusCode(),
+			RetryAfter: response.Header().Get("Retry-After"),
+		}
 	}
 	return response, nil
 }

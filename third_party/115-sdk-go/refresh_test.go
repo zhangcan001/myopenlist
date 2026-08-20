@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"runtime"
 	"strings"
 	"sync"
@@ -22,28 +21,21 @@ const (
 	testNewRefresh = "new-refresh"
 )
 
-type rewriteTransport struct {
-	base *url.URL
+type handlerTransport struct {
+	handler http.Handler
 }
 
-func (t rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (t handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	clone := req.Clone(req.Context())
-	clone.URL.Scheme = t.base.Scheme
-	clone.URL.Host = t.base.Host
-	return http.DefaultTransport.RoundTrip(clone)
+	recorder := httptest.NewRecorder()
+	t.handler.ServeHTTP(recorder, clone)
+	return recorder.Result(), nil
 }
 
 func newTestClient(t *testing.T, handler http.Handler) *Client {
 	t.Helper()
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
-	base, err := url.Parse(server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return New(WithAccessToken(testOldAccess), WithRefreshToken(testOldRefresh)).SetHttpClient(&http.Client{
-		Transport: rewriteTransport{base: base},
-	})
+	httpClient := &http.Client{Transport: handlerTransport{handler: handler}}
+	return New(WithAccessToken(testOldAccess), WithRefreshToken(testOldRefresh)).SetHttpClient(httpClient)
 }
 
 func waitTest(t *testing.T, ch <-chan struct{}, name string) {
@@ -380,6 +372,8 @@ func TestRefreshFailureDoesNotStickForever(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	}))
+	client.refreshPolicy.MaxAttempts = 1
+	client.refreshPolicy.CircuitOpenFor = 0
 
 	firstResults := make(chan []error, 1)
 	go func() { firstResults <- runAuthRequests(client, requestCount) }()
@@ -628,7 +622,7 @@ func TestConcurrentExplicitRefreshSingleFlight(t *testing.T) {
 	}
 }
 
-func TestExplicitRefreshHasNoSnapshotCoordinatorGap(t *testing.T) {
+func TestStaleRefreshResponseNeverOverwritesNewerTokenPair(t *testing.T) {
 	var refreshCalls atomic.Int32
 	var callbackCalls atomic.Int32
 	refreshStarted := make(chan struct{})
@@ -654,30 +648,26 @@ func TestExplicitRefreshHasNoSnapshotCoordinatorGap(t *testing.T) {
 	}()
 	waitTest(t, refreshStarted, "explicit leader refresh")
 
-	// A token-pair rotation while the flight is active must not affect explicit join.
-	client.setTokenPair("intervening-access", "intervening-refresh", false)
-	waiterResult := make(chan error, 1)
-	go func() {
-		_, err := client.RefreshToken(context.Background())
-		waiterResult <- err
-	}()
-	waitRefreshJoiners(t, client, 1)
+	// A newer token pair invalidates the in-flight response. The stale response
+	// must not overwrite the newer pair or invoke the refresh callback.
+	client.setTokenPair("reauth-access", "reauth-refresh", false)
 	close(releaseRefresh)
 
-	if err := <-leaderResult; err != nil {
-		t.Fatalf("leader failed: %v", err)
-	}
-	if err := <-waiterResult; err != nil {
-		t.Fatalf("explicit waiter failed: %v", err)
+	if err := <-leaderResult; !errors.Is(err, ErrRefreshSuperseded) || refreshErrorKind(t, err) != RefreshErrorSuperseded {
+		t.Fatalf("leader error = %v, want SUPERSEDED", err)
 	}
 	if got := refreshCalls.Load(); got != 1 {
 		t.Fatalf("refresh calls = %d, want 1", got)
 	}
-	if got := callbackCalls.Load(); got != 1 {
-		t.Fatalf("callback calls = %d, want 1", got)
+	if got := callbackCalls.Load(); got != 0 {
+		t.Fatalf("callback calls = %d, want 0", got)
 	}
-	if got := client.snapshotToken().generation; got != before+2 {
-		t.Fatalf("generation = %d, want %d", got, before+2)
+	snapshot := client.snapshotToken()
+	if snapshot.accessToken != "reauth-access" || snapshot.refreshToken != "reauth-refresh" {
+		t.Fatalf("token pair = %q/%q, want reauth pair", snapshot.accessToken, snapshot.refreshToken)
+	}
+	if snapshot.generation != before+1 {
+		t.Fatalf("generation = %d, want %d", snapshot.generation, before+1)
 	}
 }
 
@@ -765,7 +755,10 @@ func TestIsAuthFailureCode(t *testing.T) {
 
 func TestPassportErrorSupportsErrorsAs(t *testing.T) {
 	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeTestJSON(w, `{"code":401,"message":"invalid refresh token"}`)
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Retry-After", "10")
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprint(w, `{"code":401,"message":"invalid refresh token"}`)
 	}))
 	_, err := client.RefreshToken(context.Background())
 	var passportErr *PassportError
@@ -774,6 +767,9 @@ func TestPassportErrorSupportsErrorsAs(t *testing.T) {
 	}
 	if passportErr.Code != 401 || passportErr.Message != "invalid refresh token" {
 		t.Fatalf("passport error = %+v", passportErr)
+	}
+	if passportErr.HTTPStatus != http.StatusUnauthorized || passportErr.RetryAfter != "10" {
+		t.Fatalf("passport metadata = status %d, retry-after %q", passportErr.HTTPStatus, passportErr.RetryAfter)
 	}
 	if got := passportErr.Error(); got != "code: 401, message: invalid refresh token" {
 		t.Fatalf("passport error text = %q", got)

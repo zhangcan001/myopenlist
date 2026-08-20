@@ -1,0 +1,34 @@
+name: 115 SDK offline refresh tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "third_party/115-sdk-go/**"
+      - ".github/workflows/115-sdk-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  refresh-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: third_party/115-sdk-go
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: third_party/115-sdk-go/go.mod
+          cache-dependency-path: third_party/115-sdk-go/go.sum
+
+      - name: Run offline refresh tests
+        run: go test -run 'Test(Refresh|ExplicitRefresh|Stale401|Concurrent401|TokenPair|NormalRequest|NonAuthError|PublicSetters|IsAuthFailureCode|PassportError)' .
+
+      - name: Run offline refresh tests with Race
+        run: go test -race -run 'Test(Refresh|ExplicitRefresh|Stale401|Concurrent401|TokenPair|NormalRequest|NonAuthError|PublicSetters|IsAuthFailureCode|PassportError)' .

@@ -24,6 +24,9 @@ COMPLETE
 DEV-002 Series:
 FROZEN
 
+DEV-003:
+COMPLETE
+
 Repository:
 single-repository subtree layout
 
@@ -61,6 +64,10 @@ read-only media drive
 - Added deterministic concurrent refresh, stale-401, cancellation, snapshot, failure-recovery, and error-classification tests for the SDK auth path.
 - Linearized the public `RefreshToken` entry so it joins or creates a flight inside the token lock.
 - Added the explicit-refresh coordinator-gap regression test and froze the DEV-002 contract.
+- Added stale refresh-response CAS using start generation and refresh token snapshots.
+- Added conservative refresh error classification, bounded retry/backoff/jitter, `Retry-After` cooldown, and circuit states.
+- Added context-aware refresh cancellation, `RefreshStatus`, Token Pair circuit reset rules, and offline resilience tests.
+- Added Ubuntu GitHub Actions normal and Race jobs for the offline refresh test subset.
 - Verified SDK tests, repeated stress tests, and Core compatibility checks; Race validation is environment-blocked because the local Windows toolchain lacks `gcc`.
 
 Blocked:
@@ -69,6 +76,6 @@ Blocked:
 - No real 115 account login, token refresh, WebDAV mount, WinFsp drive mount, VLC playback, or media acceptance run was performed. This is intentional for DEV-001.
 
 Next:
-DEV-003 Refresh Resilience
+DEV-004
 
-Backoff, jitter, cooldown, circuit breaker, and advanced auth-error classification.
+115 Authorization + Token Persistence Integration

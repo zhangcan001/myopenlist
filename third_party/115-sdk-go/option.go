@@ -45,3 +45,9 @@ func WithOnRefreshToken(fn func(accessToken string, refreshToken string)) Option
 		w.SetOnRefreshToken(fn)
 	}
 }
+
+func WithRefreshPolicy(policy RefreshPolicy) Option {
+	return func(w *Client) {
+		w.refreshPolicy = policy
+	}
+}

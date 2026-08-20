@@ -13,10 +13,12 @@ type Error struct {
 }
 
 type PassportError struct {
-	Code     int
-	Message  string
-	APIError string
-	Errno    int
+	Code       int
+	Message    string
+	APIError   string
+	Errno      int
+	HTTPStatus int
+	RetryAfter string
 }
 
 func (e *PassportError) Error() string {

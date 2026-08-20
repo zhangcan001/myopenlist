@@ -38,14 +38,11 @@ C ─┘
 
 ## Failure semantics
 
-Refresh failure is shared only by callers that joined the current in-flight flight. The flight is cleared after completion, so a later request may start a new flight. No generation-level failure cache or time-based cooldown is implemented.
+Refresh failure is shared only by callers that joined the current in-flight flight. The flight is cleared after completion, so a later request may start a new flight. DEV-003 adds the separate bounded retry, cooldown, and circuit policy without changing this DEV-002 singleflight contract.
 
 ## Not implemented
 
-- Backoff
-- Jitter
-- Cooldown
-- Circuit breaker
-- Advanced auth-error classification
+- QR login
+- Token persistence integration
 
-Those belong to DEV-003 Refresh Resilience. QR login and token persistence integration remain later work.
+Backoff, jitter, cooldown, circuit breaker, and advanced refresh-error classification are implemented in [DEV-003 Refresh Resilience](DEV_003_REFRESH_RESILIENCE.md). QR login and token persistence integration remain later work.
