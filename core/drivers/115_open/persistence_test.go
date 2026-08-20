@@ -1,12 +1,15 @@
 package _115_open
 
 import (
+	"bytes"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/OpenListTeam/OpenList/v4/internal/driver"
+	log "github.com/sirupsen/logrus"
 )
 
 func TestTokenPersistenceRetriesTransientFailure(t *testing.T) {
@@ -89,7 +92,7 @@ func TestPersistenceRetryNeverWritesOlderTokenPair(t *testing.T) {
 	}
 }
 
-func TestPersistenceGenerationLatestWins(t *testing.T) {
+func TestTokenPersistenceGenerationLatestWins(t *testing.T) {
 	driverStorage := &Open115{}
 	driverStorage.SetTokenPair("access-a", "refresh-a")
 	driverStorage.tokenPersistenceMu.Lock()
@@ -134,6 +137,37 @@ func TestPersistenceGenerationLatestWins(t *testing.T) {
 	defer mu.Unlock()
 	if len(saved) != 2 || saved[0] != "access-a:refresh-a" || saved[1] != "access-b:refresh-b" {
 		t.Fatalf("saved pairs = %v", saved)
+	}
+}
+
+func TestPersistenceFailureLogsNoSecrets(t *testing.T) {
+	var output bytes.Buffer
+	logger := log.StandardLogger()
+	previousOutput := logger.Out
+	logger.SetOutput(&output)
+	t.Cleanup(func() { logger.SetOutput(previousOutput) })
+
+	driverStorage := &Open115{Addition: Addition{
+		AccessToken:  "SUPER_SECRET_ACCESS",
+		RefreshToken: "SUPER_SECRET_REFRESH",
+	}}
+	driverStorage.Storage.ID = 42
+	err := persistTestPair(driverStorage, "SUPER_SECRET_ACCESS", "SUPER_SECRET_REFRESH", func(driver.Additional) error {
+		return errors.New("storage unavailable")
+	}, func(time.Duration) {})
+	if err == nil {
+		t.Fatal("expected persistence failure")
+	}
+	got := output.String()
+	for _, secret := range []string{"SUPER_SECRET_ACCESS", "SUPER_SECRET_REFRESH"} {
+		if strings.Contains(got, secret) {
+			t.Fatalf("log contains token secret %q: %s", secret, got)
+		}
+	}
+	for _, expected := range []string{"115 token persistence failed", "storage_id=42", "state=FAILED"} {
+		if !strings.Contains(got, expected) {
+			t.Fatalf("log missing %q: %s", expected, got)
+		}
 	}
 }
 
