@@ -1,0 +1,35 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "identifier": "io.github.openlistteam.openlist.desktop",
+  "productName": "OpenList-Desktop",
+  "app": {
+    "windows": [
+      {
+        "title": "OpenList Desktop",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 400,
+        "resizable": true,
+        "center": true,
+        "decorations": true,
+        "titleBarStyle": "Transparent",
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "targets": ["app", "dmg"],
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "10.15",
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "entitlements": "packages/macos/entitlements.plist"
+    },
+    "externalBin": ["./binary/openlist", "./binary/rclone"]
+  }
+}

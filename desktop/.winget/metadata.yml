@@ -1,0 +1,18 @@
+PackageIdentifier: OpenListTeam.OpenListDesktop
+PackageName: OpenList Desktop
+Publisher: OpenList Team
+PackageUrl: https://github.com/OpenListTeam/OpenList-Desktop
+Copyright: Copyright (c) 2025 OpenList Team
+License: GPL-3.0
+LicenseUrl: https://github.com/OpenListTeam/OpenList-Desktop/blob/main/LICENSE
+ShortDescription: A cross-platform desktop application for OpenList with local disk mounting
+Description: |
+  OpenList Desktop is a modern desktop application that provides a seamless interface for managing OpenList.
+  Features include local disk mounting, service management, real-time monitoring, and multi-language support.
+
+  Key Features:
+  - Cross-platform support (Windows, macOS, Linux)
+  - Local disk mounting
+  - Service management and monitoring
+  - Real-time log viewing
+  - Multi-language support

@@ -1,0 +1,459 @@
+{
+  "app": {
+    "loading": "正在初始化",
+    "title": "OpenList"
+  },
+  "common": {
+    "add": "添加",
+    "cancel": "取消",
+    "close": "关闭",
+    "confirm": "确认",
+    "maximize": "最大化",
+    "minimize": "最小化",
+    "reset": "重置",
+    "save": "保存",
+    "saving": "保存中..."
+  },
+  "dashboard": {
+    "coreMonitor": {
+      "healthy": "健康",
+      "offline": "离线",
+      "online": "在线",
+      "responseTime": "响应时间",
+      "title": "核心监控",
+      "unhealthy": "不健康"
+    },
+    "documentation": {
+      "apiDocs": "API 文档",
+      "commands": "挂载命令",
+      "faq": "常见问题",
+      "github": "GitHub",
+      "issues": "问题反馈",
+      "openDocs": "打开文档",
+      "openlist": "OpenList",
+      "openlistDesc": "多存储文件列表程序",
+      "rclone": "Rclone",
+      "rcloneDesc": "多平台挂载命令行程序"
+    },
+    "quickActions": {
+      "configRclone": "配置 RClone",
+      "copyAdminPassword": "复制管理员密码",
+      "copyAdminPasswordFailed": "复制管理员密码失败。请查看日志了解详细信息。",
+      "copyAdminPasswordSuccess": "管理员密码已复制到剪贴板！",
+      "firewall": {
+        "added": "端口放行成功",
+        "disable": "移除端口",
+        "enable": "放行端口",
+        "failedToAdd": "添加端口放行失败",
+        "failedToRemove": "移除端口放行失败",
+        "removed": "端口移除成功"
+      },
+      "manageMounts": "管理挂载",
+      "openlistService": "OpenList 核心",
+      "openWeb": "网页",
+      "rclone": "RClone",
+      "resetAdminPassword": "重置管理员密码",
+      "resetAdminPasswordFailed": "重置管理员密码失败。请查看日志了解详细信息。",
+      "resetAdminPasswordSuccess": "管理员密码重置成功！新密码已复制到剪贴板。",
+      "startOpenListCore": "启动",
+      "stopOpenListCore": "停止",
+      "title": "核心管理"
+    },
+    "versionManager": {
+      "openlist": "OpenList",
+      "rclone": "Rclone",
+      "selectVersion": "选择版本",
+      "title": "版本管理",
+      "update": "更新",
+      "updateError": "更新 {type} 失败：{error}",
+      "updateSuccess": "{type} 更新成功！",
+      "updating": "更新中..."
+    }
+  },
+  "logs": {
+    "filters": {
+      "actions": {
+        "autoScroll": "自动滚动",
+        "clearSelection": "清除选择 (Esc)",
+        "selectAll": "全选 (Ctrl+A)"
+      },
+      "app": "应用程序",
+      "levels": {
+        "all": "所有级别",
+        "debug": "调试",
+        "error": "错误",
+        "info": "信息",
+        "warn": "警告"
+      },
+      "sources": {
+        "all": "所有来源",
+        "openlist": "OpenList",
+        "rclone": "Rclone"
+      }
+    },
+    "headers": {
+      "level": "级别",
+      "message": "消息",
+      "source": "来源",
+      "timestamp": "时间"
+    },
+    "messages": {
+      "confirmClear": "您确定要清除所有日志吗？",
+      "confirmTitle": "清除日志"
+    },
+    "notifications": {
+      "clearFailed": "清理日志失败",
+      "clearSuccess": "日志清理成功",
+      "copyFailed": "复制日志到剪贴板失败",
+      "copySuccess": "成功复制 {count} 条日志到剪贴板",
+      "exportSuccess": "成功导出 {count} 条日志到文件",
+      "openDirectoryFailed": "打开日志目录失败",
+      "openDirectorySuccess": "日志目录打开成功"
+    },
+    "search": {
+      "placeholder": "搜索日志... (Ctrl+F)"
+    },
+    "settings": {
+      "compactMode": "紧凑模式",
+      "fontSize": "字体大小：",
+      "maxLines": "最大行数：",
+      "stripAnsiColors": "去除 ANSI 颜色"
+    },
+    "stats": {
+      "logsCount": "{filtered} / {total}",
+      "selected": "已选择 {count} 个"
+    },
+    "status": {
+      "autoScroll": "自动滚动：",
+      "live": "实时",
+      "off": "关",
+      "on": "开",
+      "paused": "已暂停",
+      "showing": "显示 {filtered} / {total} 条记录",
+      "updates": "更新："
+    },
+    "toolbar": {
+      "clearLogs": "清除日志 (Ctrl+Delete)",
+      "copyToClipboard": "复制到剪贴板 (Ctrl+C)",
+      "exportLogs": "导出日志",
+      "openLogsDirectory": "打开日志目录",
+      "pause": "暂停 (Space)",
+      "refresh": "刷新 (Ctrl+R)",
+      "resume": "恢复 (Space)",
+      "scrollToBottom": "滚动到底部 (End)",
+      "scrollToTop": "滚动到顶部 (Home)",
+      "settings": "设置",
+      "showFilters": "显示筛选器",
+      "toggleFullscreen": "切换全屏 (F11)"
+    },
+    "viewer": {
+      "logsWillAppear": "服务运行时日志将在此处显示",
+      "noLogsFound": "没有日志显示",
+      "noLogsMatch": "没有日志匹配您的搜索条件"
+    }
+  },
+  "mount": {
+    "actions": {
+      "addRemote": "添加远程",
+      "delete": "删除",
+      "edit": "编辑",
+      "mount": "挂载",
+      "openInExplorer": "在文件管理器中打开",
+      "refresh": "刷新",
+      "stopProcess": "停止进程",
+      "unmount": "卸载"
+    },
+    "config": {
+      "addFlag": "添加标志",
+      "addTitle": "添加远程配置",
+      "authentication": "身份认证",
+      "autoMount": "软件启动时自动挂载",
+      "basicInfo": "基本信息",
+      "clickToToggleFlags": "点击即可立即添加或移除",
+      "editTitle": "编辑远程配置",
+      "extraFlags": "额外标志",
+      "flagCategories": {
+        "Bandwidth": "宽带",
+        "Caching": "缓存",
+        "Debugging": "调试",
+        "Network": "网络",
+        "Performance": "性能",
+        "Security": "安全",
+        "WebDAV Specific": "WebDAV 专用",
+        "Windows Specific": "Windows 专用"
+      },
+      "flagDescriptions": {
+        "allow-other": "允许其他用户访问挂载点",
+        "allow-root": "允许 root 用户访问挂载点",
+        "buffer-size-16M": "读取文件的缓冲区大小（默认 16M）",
+        "buffer-size-32M": "更大的缓冲区以获得更好的性能",
+        "bwlimit-10M": "带宽限制（例如 10M）",
+        "bwlimit-10M:100M": "分别设置上传和下载宽带限制",
+        "bwlimit-schedule": "基于时间的带宽限制",
+        "checkers": "并行运行的检查器数量（默认 8）",
+        "contimeout": "连接超时（默认 1m）",
+        "dir-cache-time": "缓存目录列表的时间（默认 5m）",
+        "log-level": "日志级别：ERROR、NOTICE、INFO、DEBUG",
+        "low-level-retries": "低级重试次数（默认 10）",
+        "progress": "传输期间显示进度",
+        "read-only": "以只读方式挂载",
+        "retries": "重试操作次数（默认 3）",
+        "timeout": "IO 空闲超时（默认 5m）",
+        "transfers": "并行传输数量（默认 4）",
+        "umask": "覆盖文件权限（默认 022）",
+        "use-json-log": "使用 JSON 格式记录日志",
+        "verbose": "打印更多详细信息",
+        "vfs-cache-max-age": "缓存的最大生命周期（默认 24h）",
+        "vfs-cache-max-size": "缓存文件的最大大小（默认 10G）",
+        "vfs-cache-mode-full": "缓存文件的完整内容",
+        "vfs-cache-mode-minimal": "只缓存文件的元信息",
+        "vfs-cache-mode-writes": "缓存本地写入，文件内容写入完成后上传",
+        "vfs-read-chunk-size": "读取块大小（默认 128M）",
+        "volname": "设置挂载后的windows卷名",
+        "webdav-bearer-token": "自定义token",
+        "webdav-headers": "设置自定义 HTTP 标头"
+      },
+      "flagPlaceholder": "例如：--vfs-cache-mode=full",
+      "mountPoint": "挂载点",
+      "mountPointPlaceholder": "例如：T: 或 /mnt/remote",
+      "mountSettings": "挂载设置",
+      "name": "名称",
+      "namePlaceholder": "例如：mount1",
+      "networkMode": "挂载为网络驱动器",
+      "password": "密码",
+      "passwordPlaceholder": "密码",
+      "quickFlags": "常用标志",
+      "quickFlagsTooltip": "快速选择常用 rclone 标志",
+      "removeFlag": "移除标志",
+      "type": "类型",
+      "types": {
+        "webdav": "WebDAV"
+      },
+      "url": "URL",
+      "urlPlaceholder": "例如：http://localhost:5264/dav/189",
+      "username": "用户名",
+      "usernamePlaceholder": "用户名",
+      "vendor": "供应商",
+      "vendorPlaceholder": "例如：189provider",
+      "volumeName": "远程路径",
+      "volumeNamePlaceholder": "例如：/"
+    },
+    "empty": {
+      "description": "创建您的第一个远程配置以开始挂载云存储。",
+      "title": "无远程配置"
+    },
+    "filters": {
+      "allStatus": "所有状态",
+      "searchPlaceholder": "搜索远程配置..."
+    },
+    "loading": "正在初始化",
+    "messages": {
+      "addedSuccessfully": "远程配置 {name} 添加成功",
+      "confirmDelete": "您确定要删除远程配置 {name} 吗？",
+      "confirmDeleteTitle": "删除配置",
+      "deletedSuccessfully": "远程配置 {name} 删除成功",
+      "failedToDelete": "删除配置失败",
+      "failedToMount": "挂载远程失败",
+      "failedToSave": "保存配置失败",
+      "failedToStopProcess": "停止挂载进程失败",
+      "failedToUnmount": "卸载远程失败",
+      "fillRequiredFields": "请填写所有必填字段",
+      "mountPointPathNotAvailable": "挂载点路径不可用",
+      "mountPointRequired": "挂载点为必填项",
+      "processStopped": "远程配置 {name} 的挂载进程已停止",
+      "unmountBeforeEdit": "请先卸载远程配置 {name}，然后再进行编辑",
+      "updatedSuccessfully": "远程配置 {name} 更新成功"
+    },
+    "meta": {
+      "autoMount": "自动挂载",
+      "networkMode": "网络驱动器"
+    },
+    "stats": {
+      "mounted": "已挂载"
+    },
+    "status": {
+      "error": "错误",
+      "mounted": "已挂载",
+      "unmounted": "未挂载"
+    },
+    "tip": {
+      "dismissForever": "永久关闭",
+      "rcloneMessage": "在 Linux 系统上，rclone 不随应用程序捆绑。请使用包管理器安装（例如：sudo apt install rclone）或从 https://rclone.org/install/ 下载安装",
+      "rcloneTitle": "需要安装 Rclone",
+      "webdavMessage": "在挂载远程存储之前，请确保在 OpenList 核心中为用户启用了 WebDAV 管理功能",
+      "webdavTitle": "需要启用 WebDAV 管理功能",
+      "winfspMessage": "在 Windows 系统上，您需要先安装 WinFSP 才能使用挂载功能。请从 GitHub 下载并安装：https://github.com/winfsp/winfsp/releases",
+      "winfspTitle": "需要安装 WinFSP"
+    },
+    "title": "挂载管理"
+  },
+  "navigation": {
+    "dashboard": "主页",
+    "logs": "日志",
+    "mount": "挂载",
+    "settings": "设置",
+    "update": "更新"
+  },
+  "settings": {
+    "app": {
+      "autoStartApp": {
+        "description": "在系统启动时自动启动 OpenList 桌面应用",
+        "title": "开机自动启动应用(立即生效)"
+      },
+      "config": {
+        "openError": "打开设置文件失败",
+        "openSuccess": "设置文件打开成功",
+        "subtitle": "打开应用程序配置文件"
+      },
+      "ghProxy": {
+        "api": {
+          "description": "同时为 api.github.com 地址使用代理",
+          "title": "代理 API 地址"
+        },
+        "help": "可选。输入代理地址以加速 GitHub。例如：https://ghfast.top",
+        "label": "GitHub 代理地址",
+        "placeholder": "https://ghfast.top",
+        "title": "GitHub 代理"
+      },
+      "hideDockIcon": {
+        "description": "隐藏程序坞图标，仅在菜单栏托盘显示（仅限 macOS，需要重启应用生效）",
+        "title": "隐藏程序坞图标（仅托盘）"
+      },
+      "language": {
+        "title": "语言"
+      },
+      "links": {
+        "openInBrowser": {
+          "description": "使用系统默认浏览器而不是内置窗口",
+          "title": "在外部浏览器中打开链接"
+        }
+      },
+      "showWindowOnStartup": {
+        "description": "在 OpenList 桌面应用启动时显示主应用窗口",
+        "title": "启动时显示主窗口"
+      },
+      "subtitle": "配置应用程序首选项和行为"
+    },
+    "common": "常规设置",
+    "confirmReset": {
+      "message": "您确定要将所有设置重置为默认值吗？此操作无法撤消。",
+      "title": "重置设置"
+    },
+    "network": {
+      "title": "网络配置"
+    },
+    "rclone": {
+      "config": {
+        "openError": "打开 Rclone 配置文件失败",
+        "openFile": "打开 rclone.conf",
+        "openSuccess": "Rclone 配置文件打开成功",
+        "subtitle": "配置 rclone 远程存储访问"
+      },
+      "subtitle": "配置远程存储连接"
+    },
+    "resetFailed": "重置设置失败。",
+    "resetSuccess": "设置已重置为默认值！",
+    "saveChanges": "保存更改",
+    "saved": "设置保存成功！",
+    "saveFailed": "保存设置失败，请重试。",
+    "service": {
+      "admin": {
+        "help": "输入自定义管理员密码或点击重置按钮生成新的随机密码。点击'保存更改'将密码应用到 OpenList 核心。",
+        "passwordPlaceholder": "输入管理员密码或点击重置生成",
+        "passwordUpdated": "管理员密码更新成功！",
+        "passwordUpdateFailed": "更新管理员密码失败。请查看日志了解详细信息。",
+        "resetFailed": "重置管理员密码失败。请查看日志了解详细信息。",
+        "resetSuccess": "管理员密码重置成功！已生成新密码并保存。",
+        "resetTitle": "重置管理员密码为新的随机值",
+        "title": "管理员密码"
+      },
+      "customPaths": {
+        "openlistBinary": {
+          "help": "覆盖默认的 OpenList 核心二进制文件。留空使用内置二进制文件。",
+          "label": "OpenList 二进制路径",
+          "placeholder": "可选。自定义 OpenList 可执行文件路径",
+          "selectTitle": "选择 OpenList 二进制文件"
+        },
+        "rcloneBinary": {
+          "help": "覆盖默认的 Rclone 二进制文件。留空使用内置二进制文件。",
+          "label": "Rclone 二进制路径",
+          "placeholder": "可选。自定义 Rclone 可执行文件路径",
+          "selectTitle": "选择 Rclone 二进制文件"
+        },
+        "rcloneConfig": {
+          "help": "覆盖默认的 rclone.conf 位置。留空使用默认路径。",
+          "label": "Rclone 配置路径",
+          "placeholder": "可选。自定义 rclone.conf 路径",
+          "selectTitle": "选择 Rclone 配置文件"
+        },
+        "selectError": "选择文件失败。请重试或手动输入路径。",
+        "title": "自定义路径"
+      },
+      "network": {
+        "dataDir": {
+          "help": "可选。为 OpenList 数据存储指定自定义目录",
+          "label": "数据目录",
+          "openError": "打开数据目录失败",
+          "openSuccess": "数据目录打开成功",
+          "openTitle": "打开数据目录",
+          "placeholder": "可选。自定义数据目录路径",
+          "selectError": "选择目录失败。请重试或手动输入路径。",
+          "selectTitle": "选择数据目录"
+        },
+        "port": {
+          "help": "Web 界面的端口号 (1-65535)",
+          "label": "监听端口",
+          "placeholder": "5244"
+        },
+        "ssl": {
+          "description": "使用 HTTPS 进行安全通信（需要配置 SSL 证书）",
+          "title": "启用 SSL/HTTPS"
+        }
+      },
+      "startup": {
+        "autoLaunch": {
+          "description": "打开软件时，启动 OpenList 核心",
+          "title": "跟随软件启动，自动启动OpenList核心"
+        }
+      },
+      "subtitle": "配置 OpenList 服务设置"
+    },
+    "subtitle": "配置您的 OpenList 桌面应用程序",
+    "tabs": {
+      "app": "应用程序",
+      "openlist": "OpenList 服务",
+      "rclone": "Rclone 存储"
+    },
+    "theme": {
+      "auto": "自动",
+      "autoDesc": "跟随系统",
+      "dark": "深色",
+      "darkDesc": "深色主题",
+      "light": "浅色",
+      "lightDesc": "浅色主题",
+      "toggle": "切换主题"
+    },
+    "title": "设置"
+  },
+  "update": {
+    "autoCheck": "自动检查更新",
+    "backgroundUpdateAvailable": "后台检测到更新",
+    "checkError": "检查更新失败",
+    "checkForUpdates": "检查更新",
+    "checking": "检查中...",
+    "currentVersion": "当前版本",
+    "downloadAndInstall": "下载并安装",
+    "downloading": "下载中...",
+    "installError": "安装更新失败",
+    "installingUpdate": "安装更新中...",
+    "lastChecked": "上次检查",
+    "noUpdatesFound": "没有可用更新",
+    "releaseDate": "发布日期",
+    "showUpdate": "显示更新",
+    "startingDownload": "开始下载...",
+    "subtitle": "保持应用程序最新，获取最新功能和安全改进",
+    "title": "应用更新",
+    "updateAvailable": "发现新版本",
+    "upToDate": "应用已是最新版本"
+  }
+}
