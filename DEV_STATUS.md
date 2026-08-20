@@ -28,13 +28,13 @@ DEV-003:
 COMPLETE
 
 DEV-004:
-COMPLETE
+FROZEN
 
 DEV-004.1:
 COMPLETE
 
 DEV-004 Production Verification:
-REAL_115_NOT_YET_TESTED
+REAL_115_NOT_TESTED
 
 Repository:
 single-repository subtree layout
