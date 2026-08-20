@@ -18,9 +18,9 @@ use cmd::logs::{clear_logs, get_logs};
 use cmd::macos_dock::set_dock_icon_visibility;
 use cmd::openlist_core::{get_openlist_core_status, start_openlist_core, stop_openlist_core};
 use cmd::os_operate::{
-    get_available_versions, open_file, open_folder, open_logs_directory, open_openlist_data_dir,
-    open_rclone_config_file, open_settings_file, open_url_in_browser, select_directory,
-    update_tool_version,
+    check_media_drive_environment, get_available_versions, open_file, open_folder,
+    open_logs_directory, open_openlist_data_dir, open_rclone_config_file, open_settings_file,
+    open_url_in_browser, open_vlc_drive, select_directory, update_tool_version,
 };
 use cmd::rclone_core::check_rclone_available;
 use cmd::rclone_mount::{
@@ -277,6 +277,8 @@ pub fn run() {
             open_rclone_config_file,
             open_settings_file,
             open_url_in_browser,
+            check_media_drive_environment,
+            open_vlc_drive,
             // Settings
             save_settings,
             save_settings_and_restart,

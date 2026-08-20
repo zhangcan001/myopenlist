@@ -71,6 +71,11 @@ interface OpenListCoreStatus {
   port?: number
 }
 
+interface MediaDriveEnvironment {
+  windows: boolean
+  winfsp_installed: boolean
+}
+
 // ProcessConfig for creating/registering processes
 interface ProcessConfig {
   id: string

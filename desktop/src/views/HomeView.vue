@@ -5,6 +5,9 @@
         <div class="flex w-full items-center justify-center border border-border rounded-xl gap-2 shadow-md">
           <QuickActionsCard />
         </div>
+        <div class="flex w-full items-center justify-center border border-border rounded-xl gap-2 shadow-md">
+          <MediaDriveCard />
+        </div>
         <div class="flex max-md:flex-col w-full gap-3">
           <div class="flex w-full items-center justify-center border border-border rounded-xl gap-2 shadow-md">
             <CoreMonitorCard />
@@ -26,6 +29,7 @@
 <script setup lang="ts">
 import CoreMonitorCard from '../components/dashboard/CoreMonitorCard.vue'
 import DocumentationCard from '../components/dashboard/DocumentationCard.vue'
+import MediaDriveCard from '../components/dashboard/MediaDriveCard.vue'
 import QuickActionsCard from '../components/dashboard/QuickActionsCard.vue'
 import VersionManagerCard from '../components/dashboard/VersionManagerCard.vue'
 </script>

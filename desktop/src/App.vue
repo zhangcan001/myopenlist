@@ -66,9 +66,11 @@ import TitleBar from './components/ui/TitleBar.vue'
 import { useTranslation } from './composables/useI18n'
 import { useTray } from './composables/useTray'
 import { useAppStore } from './stores/app'
+import { useMediaDriveStore } from './stores/mediaDrive'
 import { isMacOs } from './utils/constant'
 
 const appStore = useAppStore()
+const mediaDriveStore = useMediaDriveStore()
 const { t } = useTranslation()
 const { updateTrayMenu } = useTray()
 const isLoading = ref(true)
@@ -79,6 +81,7 @@ onMounted(async () => {
   try {
     await appStore.init()
     appStore.applyTheme(appStore.settings.app.theme || 'light')
+    await mediaDriveStore.initialize()
     await updateTrayMenu(appStore.openlistCoreStatus.running)
     updateUnlisten = await TauriAPI.updater.onBackgroundUpdate(updateInfo => {
       appStore.setUpdateAvailable(true, updateInfo)

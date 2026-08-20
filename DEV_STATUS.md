@@ -45,6 +45,9 @@ COMPLETE
 DEV-007:
 COMPLETE
 
+DEV-008:
+COMPLETE
+
 Repository:
 single-repository subtree layout
 
@@ -92,6 +95,7 @@ read-only media drive
 - Added the minimal Windows WinFsp/cgofuse read-only mount boundary with the default `R:` profile, localhost WebDAV validation, lifecycle/status controls, basic reconnect, and mock-only tests.
 - Recorded the WinFsp/Windows build environment and manual mount verification requirements in `docs/DEV_006_ENV.md` and `docs/DEV_006_WINDOWS_MOUNT.md`.
 - Added the user-ready media-drive workflow with 115/WebDAV/Mount startup ordering, unified state and health reporting, safe diagnostics, rollback on startup failure, and admin-only status/start/stop/health APIs.
+- Added the Desktop media-drive control layer with Admin HTTP-only calls, one-click start/stop, first-run configuration, safe state/error mapping, WinFsp environment detection, and a no-autoplay VLC drive entry.
 - Verified SDK tests, repeated stress tests, and Core compatibility checks; Race validation is environment-blocked because the local Windows toolchain lacks `gcc`.
 
 Blocked:
@@ -100,4 +104,9 @@ Blocked:
 - No real 115 account login, token refresh, WebDAV mount, WinFsp drive mount, VLC playback, or media acceptance run was performed. This remains intentional; DEV-006 automated tests use a mock backend and real drive mounting is manual verification.
 
 Next:
-DEV-008
+Production Validation
+
+REAL_USER_ACCEPTANCE_REQUIRED
+
+Acceptance:
+Windows 10 + WinFsp + real 115 + 4K MKV + VLC

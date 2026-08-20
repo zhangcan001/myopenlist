@@ -50,6 +50,12 @@ export class TauriAPI {
     openSettingsFile: (): Promise<boolean> => invoke('open_settings_file'),
   }
 
+  // --- Media drive desktop integration ---
+  static mediaDrive = {
+    environment: (): Promise<MediaDriveEnvironment> => invoke('check_media_drive_environment'),
+    openVlc: (driveLetter: string): Promise<boolean> => invoke('open_vlc_drive', { driveLetter }),
+  }
+
   // --- Settings management ---
   static settings = {
     load: (): Promise<MergedSettings | null> => invoke('load_settings'),

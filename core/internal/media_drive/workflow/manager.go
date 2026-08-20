@@ -53,6 +53,30 @@ func (m *Manager) Status() Status {
 	return Status{State: m.state, Running: m.state == StateRunning, Diagnostic: cloneDiagnostic(m.diagnostic)}
 }
 
+// MountProfile exposes the non-secret mount settings at the API boundary.
+// Credentials remain runtime-only inside the mount controller.
+func (m *Manager) MountProfile() (mount.MountProfile, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.mount == nil {
+		return mount.MountProfile{}, errors.New("MOUNT_UNAVAILABLE")
+	}
+	return m.mount.Profile()
+}
+
+// UpdateMountProfile changes only persisted, non-secret mount settings.
+func (m *Manager) UpdateMountProfile(profile mount.MountProfile) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.mount == nil {
+		return errors.New("MOUNT_UNAVAILABLE")
+	}
+	if m.state == StateRunning || m.state == StateStarting || m.state == StateStopping {
+		return ErrWorkflowRunning
+	}
+	return m.mount.UpdateProfile(profile)
+}
+
 func (m *Manager) StartWorkflow(ctx context.Context, options StartOptions) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

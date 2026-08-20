@@ -2,6 +2,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
+#[cfg(target_os = "windows")]
+use std::process::Command;
+
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
@@ -47,6 +50,103 @@ fn normalize_path(path: &str) -> String {
     #[cfg(not(target_os = "windows"))]
     {
         path.to_string()
+    }
+}
+
+#[derive(Serialize)]
+pub struct MediaDriveEnvironment {
+    pub windows: bool,
+    pub winfsp_installed: bool,
+}
+
+#[tauri::command]
+pub fn check_media_drive_environment() -> MediaDriveEnvironment {
+    #[cfg(target_os = "windows")]
+    {
+        let mut candidates = Vec::new();
+        for variable in ["ProgramFiles(x86)", "ProgramFiles"] {
+            if let Some(root) = std::env::var_os(variable) {
+                candidates.push(PathBuf::from(root).join("WinFsp/bin/winfsp-x64.dll"));
+            }
+        }
+        return MediaDriveEnvironment {
+            windows: true,
+            winfsp_installed: candidates.iter().any(|path| path.is_file()),
+        };
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        MediaDriveEnvironment {
+            windows: false,
+            winfsp_installed: false,
+        }
+    }
+}
+
+fn validate_drive_letter(value: &str) -> Result<String, String> {
+    let normalized = value.trim().to_uppercase();
+    if normalized.len() != 2
+        || !normalized.as_bytes()[0].is_ascii_uppercase()
+        || normalized.as_bytes()[1] != b':'
+    {
+        return Err("INVALID_DRIVE_LETTER".to_string());
+    }
+    Ok(format!("{normalized}\\"))
+}
+
+#[tauri::command]
+pub async fn open_vlc_drive(drive_letter: String) -> Result<bool, String> {
+    let drive_path = validate_drive_letter(&drive_letter)?;
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut candidates = Vec::new();
+        if let Some(root) = std::env::var_os("ProgramFiles") {
+            candidates.push(PathBuf::from(root).join("VideoLAN/VLC/vlc.exe"));
+        }
+        if let Some(root) = std::env::var_os("ProgramFiles(x86)") {
+            candidates.push(PathBuf::from(root).join("VideoLAN/VLC/vlc.exe"));
+        }
+        if let Some(root) = std::env::var_os("LOCALAPPDATA") {
+            candidates.push(PathBuf::from(root).join("Programs/VideoLAN/VLC/vlc.exe"));
+        }
+
+        let vlc_path = candidates
+            .into_iter()
+            .find(|path| path.is_file())
+            .or_else(|| {
+                Command::new("where")
+                    .arg("vlc.exe")
+                    .output()
+                    .ok()
+                    .filter(|output| output.status.success())
+                    .and_then(|output| {
+                        String::from_utf8_lossy(&output.stdout)
+                            .lines()
+                            .map(str::trim)
+                            .filter(|line| !line.is_empty())
+                            .map(PathBuf::from)
+                            .find(|path| path.is_file())
+                    })
+            });
+
+        let Some(vlc_path) = vlc_path else {
+            return Err("VLC_UNAVAILABLE".to_string());
+        };
+
+        use std::os::windows::process::CommandExt;
+        let mut command = Command::new(vlc_path);
+        command.creation_flags(0x08000000);
+        command.arg("--no-playlist-autostart").arg(&drive_path);
+        command.spawn().map_err(|_| "VLC_UNAVAILABLE".to_string())?;
+        return Ok(true);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = drive_path;
+        Err("VLC_UNAVAILABLE".to_string())
     }
 }
 

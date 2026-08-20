@@ -192,6 +192,8 @@ func admin(g *gin.RouterGroup) {
 	mediaDrive.POST("/start", handles.MediaDriveWorkflowStart)
 	mediaDrive.POST("/stop", handles.MediaDriveWorkflowStop)
 	mediaDrive.GET("/health", handles.MediaDriveWorkflowHealth)
+	mediaDrive.GET("/mount/profile", handles.MediaDriveMountProfile)
+	mediaDrive.POST("/mount/profile", handles.MediaDriveMountProfileUpdate)
 
 	// retain /admin/task API to ensure compatibility with legacy automation scripts
 	_task(g.Group("/task"))

@@ -22,6 +22,13 @@ type mediaDriveWorkflowStartRequest struct {
 	WebDAVPassword string `json:"webdav_password"`
 }
 
+type mediaDriveMountProfileRequest struct {
+	DriveLetter   string `json:"drive_letter"`
+	WebDAVURL     string `json:"webdav_url"`
+	Enabled       *bool  `json:"enabled"`
+	AutoReconnect *bool  `json:"auto_reconnect"`
+}
+
 func MediaDriveWorkflowStatus(c *gin.Context) {
 	common.SuccessResp(c, mediaDriveWorkflowManager.Status())
 }
@@ -52,6 +59,50 @@ func MediaDriveWorkflowStop(c *gin.Context) {
 
 func MediaDriveWorkflowHealth(c *gin.Context) {
 	common.SuccessResp(c, mediaDriveWorkflowManager.Health())
+}
+
+func MediaDriveMountProfile(c *gin.Context) {
+	profile, err := mediaDriveWorkflowManager.MountProfile()
+	if err != nil {
+		mediaDriveWorkflowError(c, err)
+		return
+	}
+	common.SuccessResp(c, profile)
+}
+
+func MediaDriveMountProfileUpdate(c *gin.Context) {
+	var request mediaDriveMountProfileRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ErrorResp(c, err, http.StatusBadRequest)
+		return
+	}
+	profile, err := mediaDriveWorkflowManager.MountProfile()
+	if err != nil {
+		mediaDriveWorkflowError(c, err)
+		return
+	}
+	if request.DriveLetter != "" {
+		profile.DriveLetter = request.DriveLetter
+	}
+	if request.WebDAVURL != "" {
+		profile.WebDAVURL = request.WebDAVURL
+	}
+	if request.Enabled != nil {
+		profile.Enabled = *request.Enabled
+	}
+	if request.AutoReconnect != nil {
+		profile.AutoReconnect = *request.AutoReconnect
+	}
+	if err := mediaDriveWorkflowManager.UpdateMountProfile(profile); err != nil {
+		mediaDriveWorkflowError(c, err)
+		return
+	}
+	profile, err = mediaDriveWorkflowManager.MountProfile()
+	if err != nil {
+		mediaDriveWorkflowError(c, err)
+		return
+	}
+	common.SuccessResp(c, profile)
 }
 
 func mediaDriveWorkflowError(c *gin.Context, err error) {
