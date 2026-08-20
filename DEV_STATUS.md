@@ -12,6 +12,9 @@ COMPLETE
 DEV-001.5:
 COMPLETE
 
+DEV-002:
+COMPLETE
+
 Repository:
 single-repository subtree layout
 
@@ -36,7 +39,7 @@ read-only media drive
 ## Completed
 
 - Cloned and audited official OpenList Core and OpenList Desktop repositories.
-- Audited the official `115-sdk-go` v0.2.6 source without modifying it.
+- Audited the official `115-sdk-go` v0.2.6 source before the DEV-002 SDK change.
 - Verified the Desktop frontend build and Rust checks.
 - Attempted the Core dependency download, tests, Windows build, and official release path.
 - Attempted the complete Desktop Tauri build; the release executable compiled, but bundling stopped at Windows code-signing because the downloaded OpenList sidecar has no signature.
@@ -44,6 +47,8 @@ read-only media drive
 - Converted Core, Desktop, and the pinned 115 SDK from parent-repository gitlinks to ordinary subtree-managed source trees.
 - Added local SDK resolution through `core/go.mod` without changing SDK Go source.
 - Added idempotent portable Go bootstrap, temporary environment setup, and dry-run upstream sync helper.
+- Added generation-aware singleflight token refresh coordination to the vendored 115 SDK.
+- Added deterministic concurrent refresh and shared-failure tests for the SDK auth path.
 
 Blocked:
 
@@ -52,6 +57,4 @@ Blocked:
 - No real 115 account login, token refresh, WebDAV mount, WinFsp drive mount, VLC playback, or media acceptance run was performed. This is intentional for DEV-001.
 
 Next:
-DEV-002 RefreshCoordinator
-
-Do not begin DEV-002 until the DEV-001 findings and decisions are accepted.
+DEV-003 QR/login and token persistence integration

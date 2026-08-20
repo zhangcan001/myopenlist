@@ -1,4 +1,6 @@
-# 115 authentication current-flow audit
+# 115 authentication flow audit
+
+This document preserves the DEV-001 baseline audit. The vendored SDK implementation now includes the DEV-002 coordination delta described below.
 
 ## Scope and evidence
 
@@ -7,6 +9,15 @@ This is a static audit of the local core source and the local SDK source for `gi
 - Core module: `C:\Users\ADMIN\Documents\OpenList-115-MediaDrive\core`
 - SDK source audited: `C:\Users\ADMIN\AppData\Local\Temp\openlist-115-sdk-go-v0.2.6`
 - Source citations below use absolute Windows paths and line numbers.
+
+## DEV-002 implementation delta
+
+- `Client` protects token state with a mutex and tracks a token generation.
+- Authenticated requests capture the generation used for their request.
+- Concurrent auth failures share one in-flight refresh; requests that observe a newer generation skip a second refresh and retry with the new access token.
+- Waiters receive the same refresh success or failure, and the refresh callback runs once per committed token pair.
+
+The remaining capability table and source citations describe the pre-DEV-002 v0.2.6 baseline.
 
 ## Dependency status
 

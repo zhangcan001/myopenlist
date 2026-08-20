@@ -78,17 +78,68 @@ func (c *Client) CodeToToken(ctx context.Context, uid, codeVerifier string) (*Co
 type RefreshTokenResp CodeToTokenResp
 
 func (c *Client) RefreshToken(ctx context.Context) (*RefreshTokenResp, error) {
+	_, generation := c.tokenSnapshot()
+	return c.refreshTokenCoalesced(ctx, generation, true)
+}
+
+type refreshState struct {
+	done chan struct{}
+	resp *RefreshTokenResp
+	err  error
+}
+
+func (c *Client) refreshIfNeeded(ctx context.Context, generation uint64) (*RefreshTokenResp, error) {
+	return c.refreshTokenCoalesced(ctx, generation, false)
+}
+
+func (c *Client) refreshTokenCoalesced(ctx context.Context, generation uint64, force bool) (*RefreshTokenResp, error) {
+	c.tokenMu.Lock()
+	if !force && c.tokenGeneration != generation {
+		c.tokenMu.Unlock()
+		return nil, nil
+	}
+	if !force && c.refreshFailure != nil && c.refreshFailureGeneration == generation {
+		err := c.refreshFailure
+		c.tokenMu.Unlock()
+		return nil, err
+	}
+	if state := c.refresh; state != nil {
+		c.tokenMu.Unlock()
+		select {
+		case <-state.done:
+			return state.resp, state.err
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	state := &refreshState{done: make(chan struct{})}
+	c.refresh = state
+	refreshToken := c.refreshToken
+	c.tokenMu.Unlock()
+
+	resp, err := c.refreshTokenRequest(ctx, refreshToken)
+
+	c.tokenMu.Lock()
+	state.resp = resp
+	state.err = err
+	if err != nil {
+		c.refreshFailureGeneration = c.tokenGeneration
+		c.refreshFailure = err
+	}
+	c.refresh = nil
+	close(state.done)
+	c.tokenMu.Unlock()
+	return resp, err
+}
+
+func (c *Client) refreshTokenRequest(ctx context.Context, refreshToken string) (*RefreshTokenResp, error) {
 	var resp RefreshTokenResp
 	_, err := c.passportRequest(ctx, ApiRefreshToken, http.MethodPost, &resp, ReqWithForm(Form{
-		"refresh_token": c.refreshToken,
+		"refresh_token": refreshToken,
 	}))
 	if err != nil {
 		return nil, err
 	}
-	c.SetAccessToken(resp.AccessToken)
-	c.SetRefreshToken(resp.RefreshToken)
-	if c.onRefreshToken != nil {
-		c.onRefreshToken(resp.AccessToken, resp.RefreshToken)
-	}
+	c.commitTokenPair(resp.AccessToken, resp.RefreshToken)
 	return &resp, err
 }

@@ -10,7 +10,7 @@ Simple UI
 
 ## 115 SDK layer
 
-Future SDK-side work owns `RefreshCoordinator`, `SingleFlight`, token generation/versioning, backoff, jitter, circuit breaker, and typed auth-error classification. DEV-001 confirms these are absent or partial in SDK v0.2.6 and does not implement them.
+SDK-side work owns `RefreshCoordinator`, `SingleFlight`, token generation/versioning, backoff, jitter, circuit breaker, and typed auth-error classification. DEV-002 implements the first three for concurrent access-token refreshes: one in-flight refresh per client, generation-aware retry suppression, and shared success/failure results. Backoff, jitter, circuit breaker, and typed auth-error classification remain future work.
 
 ## OpenList Core layer
 
