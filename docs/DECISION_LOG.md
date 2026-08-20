@@ -25,3 +25,4 @@ DEV-001 architecture decisions are recorded above. DEV-002 and DEV-002.1 impleme
 - **ADR-020:** A stale 401 from an older Generation must never cause another refresh.
 - **ADR-021:** Refresh callback executes once per successful Token Pair rotation and runs after the token lock is released.
 - **ADR-022:** Refresh failure is shared only by the current in-flight cohort. Retry policy, cooldown, and resilience escalation belong to DEV-003.
+- **ADR-023:** Public explicit `RefreshToken` participates directly in RefreshCoordinator. This removes the token snapshot-to-flight-registration TOCTOU window.

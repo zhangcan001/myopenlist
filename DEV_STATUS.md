@@ -18,6 +18,12 @@ COMPLETE
 DEV-002.1:
 COMPLETE
 
+DEV-002.2:
+COMPLETE
+
+DEV-002 Series:
+FROZEN
+
 Repository:
 single-repository subtree layout
 
@@ -53,6 +59,8 @@ read-only media drive
 - Added generation-aware singleflight token refresh coordination to the vendored 115 SDK.
 - Added atomic Token Pair updates for refresh and CodeToToken without changing the existing QR callback behavior.
 - Added deterministic concurrent refresh, stale-401, cancellation, snapshot, failure-recovery, and error-classification tests for the SDK auth path.
+- Linearized the public `RefreshToken` entry so it joins or creates a flight inside the token lock.
+- Added the explicit-refresh coordinator-gap regression test and froze the DEV-002 contract.
 - Verified SDK tests, repeated stress tests, and Core compatibility checks; Race validation is environment-blocked because the local Windows toolchain lacks `gcc`.
 
 Blocked:

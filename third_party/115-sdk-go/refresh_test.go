@@ -628,6 +628,59 @@ func TestConcurrentExplicitRefreshSingleFlight(t *testing.T) {
 	}
 }
 
+func TestExplicitRefreshHasNoSnapshotCoordinatorGap(t *testing.T) {
+	var refreshCalls atomic.Int32
+	var callbackCalls atomic.Int32
+	refreshStarted := make(chan struct{})
+	releaseRefresh := make(chan struct{})
+	var refreshOnce sync.Once
+	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/open/refreshToken" {
+			http.NotFound(w, r)
+			return
+		}
+		refreshCalls.Add(1)
+		refreshOnce.Do(func() { close(refreshStarted) })
+		<-releaseRefresh
+		writeTestJSON(w, `{"code":0,"data":{"access_token":"new-access","refresh_token":"new-refresh"}}`)
+	}))
+	client.SetOnRefreshToken(func(string, string) { callbackCalls.Add(1) })
+	before := client.snapshotToken().generation
+
+	leaderResult := make(chan error, 1)
+	go func() {
+		_, err := client.RefreshToken(context.Background())
+		leaderResult <- err
+	}()
+	waitTest(t, refreshStarted, "explicit leader refresh")
+
+	// A token-pair rotation while the flight is active must not affect explicit join.
+	client.setTokenPair("intervening-access", "intervening-refresh", false)
+	waiterResult := make(chan error, 1)
+	go func() {
+		_, err := client.RefreshToken(context.Background())
+		waiterResult <- err
+	}()
+	waitRefreshJoiners(t, client, 1)
+	close(releaseRefresh)
+
+	if err := <-leaderResult; err != nil {
+		t.Fatalf("leader failed: %v", err)
+	}
+	if err := <-waiterResult; err != nil {
+		t.Fatalf("explicit waiter failed: %v", err)
+	}
+	if got := refreshCalls.Load(); got != 1 {
+		t.Fatalf("refresh calls = %d, want 1", got)
+	}
+	if got := callbackCalls.Load(); got != 1 {
+		t.Fatalf("callback calls = %d, want 1", got)
+	}
+	if got := client.snapshotToken().generation; got != before+2 {
+		t.Fatalf("generation = %d, want %d", got, before+2)
+	}
+}
+
 func TestTokenGenerationIncrementsOncePerRefresh(t *testing.T) {
 	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeTestJSON(w, `{"code":0,"data":{"access_token":"new-access","refresh_token":"new-refresh"}}`)

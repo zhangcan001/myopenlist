@@ -32,6 +32,7 @@ C ─┘
 - Token Pair updates replace both tokens and increment generation under one write lock.
 - Token Generation identifies the authentication state used by each request.
 - Refresh Flight has one leader and shared `resp`/`err` state for waiters.
+- Public `RefreshToken` enters the refresh-flight coordinator directly; it does not snapshot generation before registration.
 - A stale 401 from an older generation skips refresh and retries with the current token.
 - Waiters may stop waiting through their own context without canceling the leader.
 

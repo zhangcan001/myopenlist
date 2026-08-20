@@ -77,8 +77,7 @@ func (c *Client) CodeToToken(ctx context.Context, uid, codeVerifier string) (*Co
 type RefreshTokenResp CodeToTokenResp
 
 func (c *Client) RefreshToken(ctx context.Context) (*RefreshTokenResp, error) {
-	snapshot := c.snapshotToken()
-	return c.refreshTokenCoalesced(ctx, snapshot.generation, true)
+	return c.refreshExplicit(ctx)
 }
 
 type refreshState struct {
@@ -89,15 +88,20 @@ type refreshState struct {
 }
 
 func (c *Client) refreshIfNeeded(ctx context.Context, generation uint64) (*RefreshTokenResp, error) {
-	return c.refreshTokenCoalesced(ctx, generation, false)
-}
-
-func (c *Client) refreshTokenCoalesced(ctx context.Context, generation uint64, force bool) (*RefreshTokenResp, error) {
 	c.tokenMu.Lock()
-	if !force && c.tokenGeneration != generation {
+	if c.tokenGeneration != generation {
 		c.tokenMu.Unlock()
 		return nil, nil
 	}
+	return c.refreshLocked(ctx)
+}
+
+func (c *Client) refreshExplicit(ctx context.Context) (*RefreshTokenResp, error) {
+	c.tokenMu.Lock()
+	return c.refreshLocked(ctx)
+}
+
+func (c *Client) refreshLocked(ctx context.Context) (*RefreshTokenResp, error) {
 	if state := c.refresh; state != nil {
 		state.joined++
 		c.tokenMu.Unlock()
