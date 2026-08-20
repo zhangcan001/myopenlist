@@ -133,7 +133,7 @@ func TestStatusPreservesProviderStatusWithoutInventedMapping(t *testing.T) {
 	}
 }
 
-func TestConcurrentCompleteExchangesTokenOnce(t *testing.T) {
+func TestConcurrentCompleteSingleExchange(t *testing.T) {
 	provider := &fakeAuthProvider{exchangeStarted: make(chan struct{}), exchangeRelease: make(chan struct{})}
 	provisioner := &fakeProvisioner{result: StorageResult{StorageID: 1, MountPath: "/115", Connected: true, State: StateReady}}
 	service := newTestService(provider, provisioner)
@@ -179,7 +179,7 @@ func TestCompleteDoesNotLeakToken(t *testing.T) {
 	}
 }
 
-func TestCompleteIsIdempotent(t *testing.T) {
+func TestCompleteIdempotent(t *testing.T) {
 	provider := &fakeAuthProvider{}
 	provisioner := &fakeProvisioner{result: StorageResult{StorageID: 3, MountPath: "/115", Connected: true, State: StateReady}}
 	service := newTestService(provider, provisioner)

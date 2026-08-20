@@ -2,7 +2,7 @@
 
 Project: OpenList 115 Media Drive
 Architecture: V3.1
-Status: Implementation complete; offline verification complete; real 115 acceptance pending.
+Status: DEV-004.1 audit complete; offline verification complete; REAL_115_NOT_YET_TESTED.
 
 ## 1. Scope
 
@@ -50,9 +50,9 @@ If `/115` belongs to another driver, the service returns `STORAGE_CONFLICT` and 
 
 ## 9. Token persistence
 
-Refresh callbacks in `Open115` update the in-memory Token Pair under `tokenPersistenceMu`, then persist a copied Addition through `SaveStorageAdditionSnapshot`. That path calls `db.UpdateStorageAddition`, which updates only the `addition` column. The existing `MustSaveDriverStorage` behavior remains available for unrelated driver lifecycle saves.
+Refresh callbacks in `Open115` update the in-memory Token Pair under `tokenPersistenceMu`, increment `tokenPersistenceGeneration`, then persist a copied Addition through `SaveStorageAdditionSnapshot`. Each save records its generation and abandons stale work before another attempt. A write mutex serializes database writes so a newer Pair is the final writer. That path calls `db.UpdateStorageAddition`, which updates only the `addition` column. The existing `MustSaveDriverStorage` behavior remains available for unrelated driver lifecycle saves.
 
-Persistence uses exactly three local attempts with delays of `0`, `100ms`, and `500ms`. The pair in memory remains authoritative if all attempts fail; the observable persistence state becomes `FAILED`. A later retry saves the current pair, never an older snapshot. There is no claim of crash-safe transactional coordination across the SDK, database, and process boundary.
+Persistence uses exactly three local attempts with delays of `0`, `100ms`, and `500ms`. The pair in memory remains authoritative if all attempts fail; the observable persistence state becomes `FAILED`, and the log emits only `token pair persistence failed`. A later retry saves the current pair, never an older snapshot. There is no claim of crash-safe transactional coordination across the SDK, database, and process boundary.
 
 ## 10. Failure and response safety
 
@@ -96,3 +96,5 @@ go test ./...
 ## 13. Production verification requirements
 
 Production acceptance is pending an approved 115 client ID and a controlled real-account test. The remaining checks are real QR start/status/complete, real Token Pair refresh and restart persistence, `/115` WebDAV behavior, Windows Core build, Rclone/WinFsp mounting, and VLC seek/playback acceptance. This task does not claim those checks passed.
+
+`REAL_115_NOT_YET_TESTED` is an explicit release marker: no real 115 account, token, or production API call was used during this audit.

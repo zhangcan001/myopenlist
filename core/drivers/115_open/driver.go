@@ -22,19 +22,22 @@ import (
 	"github.com/OpenListTeam/OpenList/v4/internal/stream"
 	"github.com/OpenListTeam/OpenList/v4/pkg/http_range"
 	"github.com/OpenListTeam/OpenList/v4/pkg/utils"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 )
 
 type Open115 struct {
 	model.Storage
 	Addition
-	client               *sdk.Client
-	limiter              *rate.Limiter
-	parentPath           string
-	tokenPersistenceMu   sync.Mutex
-	persistenceState     TokenPersistenceState
-	persistenceAttempts  int
-	persistenceLastError string
+	client                     *sdk.Client
+	limiter                    *rate.Limiter
+	parentPath                 string
+	tokenPersistenceMu         sync.Mutex
+	tokenPersistenceWriteMu    sync.Mutex
+	tokenPersistenceGeneration uint64
+	persistenceState           TokenPersistenceState
+	persistenceAttempts        int
+	persistenceLastError       string
 }
 
 type TokenPersistenceState string
@@ -112,6 +115,9 @@ func (d *Open115) Init(ctx context.Context) error {
 // SetTokenPair replaces the in-memory pair before a managed storage reload.
 func (d *Open115) SetTokenPair(accessToken, refreshToken string) {
 	d.tokenPersistenceMu.Lock()
+	if d.Addition.AccessToken != accessToken || d.Addition.RefreshToken != refreshToken {
+		d.tokenPersistenceGeneration++
+	}
 	d.Addition.AccessToken = accessToken
 	d.Addition.RefreshToken = refreshToken
 	d.persistenceState = TokenPersistenceClean
@@ -136,38 +142,63 @@ func (d *Open115) TokenPersistenceStatus() TokenPersistenceStatus {
 
 func (d *Open115) RetryTokenPersistence() error {
 	d.tokenPersistenceMu.Lock()
-	defer d.tokenPersistenceMu.Unlock()
-	return d.persistTokenPairLocked(d.Addition.AccessToken, d.Addition.RefreshToken)
-}
-
-func (d *Open115) persistRotatedTokenPair(accessToken, refreshToken string) {
-	d.tokenPersistenceMu.Lock()
-	defer d.tokenPersistenceMu.Unlock()
-	d.Addition.AccessToken = accessToken
-	d.Addition.RefreshToken = refreshToken
-	// The current in-memory pair remains authoritative; status makes a
-	// database failure visible without logging credentials.
-	_ = d.persistTokenPairLocked(accessToken, refreshToken)
-}
-
-func (d *Open115) persistTokenPairLocked(accessToken, refreshToken string) error {
-	return d.persistTokenPairLockedWith(accessToken, refreshToken, func(addition driver.Additional) error {
+	accessToken, refreshToken := d.Addition.AccessToken, d.Addition.RefreshToken
+	generation := d.tokenPersistenceGeneration
+	d.tokenPersistenceMu.Unlock()
+	return d.persistTokenPair(accessToken, refreshToken, generation, func(addition driver.Additional) error {
 		return op.SaveStorageAdditionSnapshot(d.Storage.ID, addition)
 	}, time.Sleep)
 }
 
-func (d *Open115) persistTokenPairLockedWith(accessToken, refreshToken string, save func(driver.Additional) error, sleep func(time.Duration)) error {
+func (d *Open115) persistRotatedTokenPair(accessToken, refreshToken string) {
+	d.tokenPersistenceMu.Lock()
+	if d.Addition.AccessToken != accessToken || d.Addition.RefreshToken != refreshToken {
+		d.tokenPersistenceGeneration++
+	}
+	d.Addition.AccessToken = accessToken
+	d.Addition.RefreshToken = refreshToken
+	generation := d.tokenPersistenceGeneration
+	d.tokenPersistenceMu.Unlock()
+	if err := d.persistTokenPair(accessToken, refreshToken, generation, func(addition driver.Additional) error {
+		return op.SaveStorageAdditionSnapshot(d.Storage.ID, addition)
+	}, time.Sleep); err != nil {
+		log.Warn("token pair persistence failed")
+	}
+}
+
+func (d *Open115) persistTokenPair(accessToken, refreshToken string, generation uint64, save func(driver.Additional) error, sleep func(time.Duration)) error {
+	d.tokenPersistenceWriteMu.Lock()
+	defer d.tokenPersistenceWriteMu.Unlock()
+	d.tokenPersistenceMu.Lock()
+	if d.tokenPersistenceGeneration != generation {
+		d.tokenPersistenceMu.Unlock()
+		return nil
+	}
 	d.persistenceState = TokenPersistenceRetrying
 	d.persistenceLastError = ""
+	d.tokenPersistenceMu.Unlock()
+
 	var attempts int
 	err := retryPersistence(func() error {
 		attempts++
+		d.tokenPersistenceMu.Lock()
+		if d.tokenPersistenceGeneration != generation {
+			d.tokenPersistenceMu.Unlock()
+			return errTokenPersistenceSuperseded
+		}
 		d.persistenceAttempts = attempts
 		addition := d.Addition
 		addition.AccessToken = accessToken
 		addition.RefreshToken = refreshToken
+		d.tokenPersistenceMu.Unlock()
 		return save(&addition)
 	}, sleep)
+
+	d.tokenPersistenceMu.Lock()
+	defer d.tokenPersistenceMu.Unlock()
+	if d.tokenPersistenceGeneration != generation || errors.Is(err, errTokenPersistenceSuperseded) {
+		return nil
+	}
 	if err != nil {
 		d.persistenceState = TokenPersistenceFailed
 		d.persistenceLastError = "storage addition persistence failed"
@@ -178,6 +209,8 @@ func (d *Open115) persistTokenPairLockedWith(accessToken, refreshToken string, s
 	return nil
 }
 
+var errTokenPersistenceSuperseded = errors.New("token pair persistence superseded")
+
 func retryPersistence(save func() error, sleep func(time.Duration)) error {
 	for attempt, delay := range []time.Duration{0, 100 * time.Millisecond, 500 * time.Millisecond} {
 		if delay > 0 {
@@ -185,6 +218,8 @@ func retryPersistence(save func() error, sleep func(time.Duration)) error {
 		}
 		if err := save(); err == nil {
 			return nil
+		} else if errors.Is(err, errTokenPersistenceSuperseded) {
+			return err
 		} else if attempt == 2 {
 			return err
 		}

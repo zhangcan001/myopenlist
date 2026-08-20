@@ -2,28 +2,10 @@ package auth115
 
 import (
 	"context"
-	cryptorand "crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"sync"
 	"time"
 )
-
-type session struct {
-	id         string
-	verifier   string
-	uid        string
-	timestamp  int64
-	sign       string
-	expiresAt  time.Time
-	state      SessionState
-	qrCode     string
-	provider   QRStatusResult
-	storage    *StorageResult
-	lastError  error
-	done       chan struct{}
-	doneClosed bool
-}
 
 type Service struct {
 	mu          sync.Mutex
@@ -348,13 +330,6 @@ func (s *Service) ready(id string, result StorageResult) {
 	}
 }
 
-func (s *Service) closeLocked(item *session) {
-	if !item.doneClosed {
-		close(item.done)
-		item.doneClosed = true
-	}
-}
-
 func (s *Service) statusResponseLocked(item *session) *StatusResponse {
 	response := &StatusResponse{
 		SessionID:    item.id,
@@ -374,21 +349,4 @@ func cloneStorageResult(result *StorageResult) *StorageResult {
 	}
 	copy := *result
 	return &copy
-}
-
-func isTerminal(state SessionState) bool {
-	switch state {
-	case StateReady, StateCanceled, StateExpired, StateFailed:
-		return true
-	default:
-		return false
-	}
-}
-
-func randomURLString(size int) (string, error) {
-	buffer := make([]byte, size)
-	if _, err := cryptorand.Read(buffer); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(buffer), nil
 }

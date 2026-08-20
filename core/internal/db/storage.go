@@ -5,6 +5,8 @@ import (
 
 	"github.com/OpenListTeam/OpenList/v4/internal/model"
 	"github.com/pkg/errors"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 // why don't need `cache` for storage?
@@ -25,7 +27,7 @@ func UpdateStorage(storage *model.Storage) error {
 // UpdateStorageAddition updates only the driver addition JSON. Token rotation
 // must not overwrite unrelated storage fields changed by another request.
 func UpdateStorageAddition(id uint, addition string) error {
-	return errors.WithStack(db.Model(&model.Storage{}).Where("id = ?", id).Update("addition", addition).Error)
+	return errors.WithStack(db.Session(&gorm.Session{Logger: logger.Discard}).Model(&model.Storage{}).Where("id = ?", id).Update("addition", addition).Error)
 }
 
 // DeleteStorageById just delete storage from database by id
