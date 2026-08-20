@@ -69,23 +69,23 @@ func (c *Client) CodeToToken(ctx context.Context, uid, codeVerifier string) (*Co
 	if err != nil {
 		return nil, err
 	}
-	// TODO: set token?
-	c.SetAccessToken(resp.AccessToken)
-	c.SetRefreshToken(resp.RefreshToken)
+	// QR token exchange preserves the existing no-callback behavior.
+	c.setTokenPair(resp.AccessToken, resp.RefreshToken, false)
 	return &resp, err
 }
 
 type RefreshTokenResp CodeToTokenResp
 
 func (c *Client) RefreshToken(ctx context.Context) (*RefreshTokenResp, error) {
-	_, generation := c.tokenSnapshot()
-	return c.refreshTokenCoalesced(ctx, generation, true)
+	snapshot := c.snapshotToken()
+	return c.refreshTokenCoalesced(ctx, snapshot.generation, true)
 }
 
 type refreshState struct {
-	done chan struct{}
-	resp *RefreshTokenResp
-	err  error
+	done   chan struct{}
+	resp   *RefreshTokenResp
+	err    error
+	joined int
 }
 
 func (c *Client) refreshIfNeeded(ctx context.Context, generation uint64) (*RefreshTokenResp, error) {
@@ -98,12 +98,8 @@ func (c *Client) refreshTokenCoalesced(ctx context.Context, generation uint64, f
 		c.tokenMu.Unlock()
 		return nil, nil
 	}
-	if !force && c.refreshFailure != nil && c.refreshFailureGeneration == generation {
-		err := c.refreshFailure
-		c.tokenMu.Unlock()
-		return nil, err
-	}
 	if state := c.refresh; state != nil {
+		state.joined++
 		c.tokenMu.Unlock()
 		select {
 		case <-state.done:
@@ -122,10 +118,6 @@ func (c *Client) refreshTokenCoalesced(ctx context.Context, generation uint64, f
 	c.tokenMu.Lock()
 	state.resp = resp
 	state.err = err
-	if err != nil {
-		c.refreshFailureGeneration = c.tokenGeneration
-		c.refreshFailure = err
-	}
 	c.refresh = nil
 	close(state.done)
 	c.tokenMu.Unlock()
@@ -140,6 +132,6 @@ func (c *Client) refreshTokenRequest(ctx context.Context, refreshToken string) (
 	if err != nil {
 		return nil, err
 	}
-	c.commitTokenPair(resp.AccessToken, resp.RefreshToken)
+	c.setTokenPair(resp.AccessToken, resp.RefreshToken, true)
 	return &resp, err
 }

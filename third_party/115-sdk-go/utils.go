@@ -25,3 +25,7 @@ func Is401Started(code int64) bool {
 	codeStr := strconv.FormatInt(code, 10)
 	return strings.HasPrefix(codeStr, "401")
 }
+
+func IsAuthFailureCode(code int64) bool {
+	return code == 99 || Is401Started(code)
+}

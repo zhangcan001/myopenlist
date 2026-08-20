@@ -1,4 +1,4 @@
-# DEV-001 status
+# Development status
 
 Project:
 OpenList 115 Media Drive
@@ -13,6 +13,9 @@ DEV-001.5:
 COMPLETE
 
 DEV-002:
+COMPLETE
+
+DEV-002.1:
 COMPLETE
 
 Repository:
@@ -48,13 +51,16 @@ read-only media drive
 - Added local SDK resolution through `core/go.mod` without changing SDK Go source.
 - Added idempotent portable Go bootstrap, temporary environment setup, and dry-run upstream sync helper.
 - Added generation-aware singleflight token refresh coordination to the vendored 115 SDK.
-- Added deterministic concurrent refresh and shared-failure tests for the SDK auth path.
+- Added atomic Token Pair updates for refresh and CodeToToken without changing the existing QR callback behavior.
+- Added deterministic concurrent refresh, stale-401, cancellation, snapshot, failure-recovery, and error-classification tests for the SDK auth path.
+- Verified SDK tests, repeated stress tests, and Core compatibility checks; Race validation is environment-blocked because the local Windows toolchain lacks `gcc`.
 
 Blocked:
 
-- `go test ./...` still fails on upstream vet checks and tests requiring external/local services; no business logic was changed to force a pass.
 - The Desktop installer bundle remains unverified because the Windows signing step failed in DEV-001; Packaging DEV owns that issue.
 - No real 115 account login, token refresh, WebDAV mount, WinFsp drive mount, VLC playback, or media acceptance run was performed. This is intentional for DEV-001.
 
 Next:
-DEV-003 QR/login and token persistence integration
+DEV-003 Refresh Resilience
+
+Backoff, jitter, cooldown, circuit breaker, and advanced auth-error classification.

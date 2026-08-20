@@ -3,7 +3,6 @@ package sdk
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"resty.dev/v3"
 )
@@ -26,20 +25,20 @@ func (c *Client) passportRequest(ctx context.Context, url, method string, respDa
 		return nil, err
 	}
 	if resp.Code != 0 {
-		return response, fmt.Errorf("code: %d, message: %s", resp.Code, resp.Message)
+		return response, &PassportError{Code: resp.Code, Message: resp.Message}
 	}
 	if resp.Error != "" {
-		return response, fmt.Errorf("error: %s, errno: %d", resp.Error, resp.Errno)
+		return response, &PassportError{APIError: resp.Error, Errno: resp.Errno}
 	}
 	return response, nil
 }
 
 func (c *Client) authRequest(ctx context.Context, url, method string, respData any, extractData, retry bool, opts ...RestyOption) (*resty.Response, error) {
-	accessToken, generation := c.tokenSnapshot()
+	snapshot := c.snapshotToken()
 	var resp Resp[json.RawMessage]
 	response, err := c.Request(ctx, url, method, append(opts, ReqWithResp(&resp), func(request *resty.Request) {
-		if accessToken != "" {
-			request.SetAuthToken(accessToken)
+		if snapshot.accessToken != "" {
+			request.SetAuthToken(snapshot.accessToken)
 		}
 	})...)
 	// fmt.Printf("%s->%s\n resp: %s\n", method, url, response.String())
@@ -47,8 +46,8 @@ func (c *Client) authRequest(ctx context.Context, url, method string, respData a
 		return nil, err
 	}
 	if !resp.State {
-		if !retry && (resp.Code == 99 || Is401Started(resp.Code)) {
-			_, err := c.refreshIfNeeded(ctx, generation)
+		if !retry && IsAuthFailureCode(resp.Code) {
+			_, err := c.refreshIfNeeded(ctx, snapshot.generation)
 			if err != nil {
 				return response, err
 			}

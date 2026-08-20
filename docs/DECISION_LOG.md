@@ -15,7 +15,13 @@
 - **ADR-013:** Enhanced Core and Desktop versions are bound by a release manifest.
 - **ADR-014:** Ordinary users do not see WebDAV/Rclone technical configuration.
 
-These are architecture decisions only; no DEV-002 token coordinator or QR login was implemented.
+DEV-001 architecture decisions are recorded above. DEV-002 and DEV-002.1 implementation decisions are recorded below; QR login remains future work.
 
 - **ADR-015:** Use a single-repository source layout. OpenList Core, Desktop, and the 115 SDK enter `myopenlist` as squashed subtree/vendor source. This supports one clone, branch, CI, release, and coordinated review.
 - **ADR-016:** Prefer a project-level portable Go toolchain. It is reproducible, requires no administrator permission, and avoids permanent system `PATH` or registry changes.
+- **ADR-017:** Token Pair is atomic authentication state. Internal flows that rotate access and refresh tokens update both under one token lock and increment generation once.
+- **ADR-018:** Concurrent token refresh uses one in-flight refresh per SDK Client. Waiters share the leader's result and the refresh callback runs once per successful pair rotation.
+- **ADR-019:** Each authenticated request records the Token Generation used for its request.
+- **ADR-020:** A stale 401 from an older Generation must never cause another refresh.
+- **ADR-021:** Refresh callback executes once per successful Token Pair rotation and runs after the token lock is released.
+- **ADR-022:** Refresh failure is shared only by the current in-flight cohort. Retry policy, cooldown, and resilience escalation belong to DEV-003.

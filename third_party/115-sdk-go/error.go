@@ -12,6 +12,20 @@ type Error struct {
 	Message string `json:"message"`
 }
 
+type PassportError struct {
+	Code     int
+	Message  string
+	APIError string
+	Errno    int
+}
+
+func (e *PassportError) Error() string {
+	if e.Code != 0 {
+		return fmt.Sprintf("code: %d, message: %s", e.Code, e.Message)
+	}
+	return fmt.Sprintf("error: %s, errno: %d", e.APIError, e.Errno)
+}
+
 func (e *Error) Error() string {
 	return fmt.Sprintf("code: %d, message: %s", e.Code, e.Message)
 }
