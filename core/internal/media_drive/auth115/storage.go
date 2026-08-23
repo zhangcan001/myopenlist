@@ -12,10 +12,15 @@ import (
 	"github.com/OpenListTeam/OpenList/v4/internal/driver"
 	"github.com/OpenListTeam/OpenList/v4/internal/model"
 	"github.com/OpenListTeam/OpenList/v4/internal/op"
+	log "github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
-const managedMountPath = "/115"
+const (
+	managedMountPath       = "/115"
+	managedRemark          = "managed-by:openlist-115-media-drive"
+	managedCacheExpiration = 30
+)
 
 type CoreStorageProvisioner struct {
 	mu        sync.Mutex
@@ -44,10 +49,11 @@ func (p *CoreStorageProvisioner) provisionLocked(ctx context.Context, pair Token
 			return StorageResult{}, authError(CodeStorageInitFailed, marshalErr)
 		}
 		id, createErr := op.CreateStorage(ctx, model.Storage{
-			MountPath: p.mountPath,
-			Driver:    _115_open.ConfigName(),
-			Addition:  addition,
-			Remark:    "managed-by:openlist-115-media-drive",
+			MountPath:       p.mountPath,
+			Driver:          _115_open.ConfigName(),
+			CacheExpiration: managedCacheExpiration,
+			Addition:        addition,
+			Remark:          managedRemark,
 		})
 		if createErr != nil {
 			// CreateStorage may have inserted the row before driver Init failed.
@@ -121,9 +127,14 @@ func (p *CoreStorageProvisioner) Retry(ctx context.Context) (StorageResult, erro
 }
 
 func (p *CoreStorageProvisioner) Status() StorageStatus {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	storage, err := db.GetStorageByMountPath(p.mountPath)
 	if err != nil {
 		return StorageStatus{}
+	}
+	if err = p.ensureManagedDefaults(storage); err != nil {
+		log.Warnf("failed to migrate managed 115 storage defaults: %v", err)
 	}
 	status := StorageStatus{
 		StorageID:   storage.ID,
@@ -143,6 +154,20 @@ func (p *CoreStorageProvisioner) Status() StorageStatus {
 		}
 	}
 	return status
+}
+
+func (p *CoreStorageProvisioner) ensureManagedDefaults(storage *model.Storage) error {
+	if storage.Driver != _115_open.ConfigName() || storage.Remark != managedRemark || storage.CacheExpiration > 0 {
+		return nil
+	}
+	if err := db.UpdateStorageCacheExpiration(storage.ID, managedCacheExpiration); err != nil {
+		return err
+	}
+	storage.CacheExpiration = managedCacheExpiration
+	if current, err := op.GetStorageByMountPath(p.mountPath); err == nil {
+		current.GetStorage().CacheExpiration = managedCacheExpiration
+	}
+	return nil
 }
 
 func newManagedAddition(pair TokenPair) (string, error) {

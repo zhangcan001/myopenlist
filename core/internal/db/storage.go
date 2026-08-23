@@ -30,6 +30,10 @@ func UpdateStorageAddition(id uint, addition string) error {
 	return errors.WithStack(db.Session(&gorm.Session{Logger: logger.Discard}).Model(&model.Storage{}).Where("id = ?", id).Update("addition", addition).Error)
 }
 
+func UpdateStorageCacheExpiration(id uint, minutes int) error {
+	return errors.WithStack(db.Model(&model.Storage{}).Where("id = ? AND cache_expiration <= 0", id).Update("cache_expiration", minutes).Error)
+}
+
 // DeleteStorageById just delete storage from database by id
 func DeleteStorageById(id uint) error {
 	return errors.WithStack(db.Delete(&model.Storage{}, id).Error)

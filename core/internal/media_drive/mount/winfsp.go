@@ -5,10 +5,15 @@ package mount
 import (
 	"io"
 	"os"
+	"path"
+	"time"
 
+	"github.com/OpenListTeam/OpenList/v4/internal/cache"
 	"github.com/OpenListTeam/OpenList/v4/pkg/gowebdav"
 	"github.com/winfsp/cgofuse/fuse"
 )
+
+const webDAVMetadataCacheTTL = 10 * time.Second
 
 type winFSPBackend struct{}
 
@@ -17,10 +22,7 @@ func newWinFSPBackend() MountBackend {
 }
 
 func (b *winFSPBackend) Mount(profile MountProfile) (MountHandle, error) {
-	filesystem := &webDAVFileSystem{
-		client: gowebdav.NewClient(profile.WebDAVURL, profile.Username, profile.Password),
-		ready:  make(chan struct{}),
-	}
+	filesystem := newWebDAVFileSystem(gowebdav.NewClient(profile.WebDAVURL, profile.Username, profile.Password))
 	host := fuse.NewFileSystemHost(filesystem)
 	host.SetCapCaseInsensitive(true)
 	host.SetCapReaddirPlus(true)
@@ -76,6 +78,48 @@ type webDAVFileSystem struct {
 	fuse.FileSystemBase
 	client *gowebdav.Client
 	ready  chan struct{}
+	stats  *cache.KeyedCache[os.FileInfo]
+	dirs   *cache.KeyedCache[[]os.FileInfo]
+}
+
+func newWebDAVFileSystem(client *gowebdav.Client) *webDAVFileSystem {
+	return &webDAVFileSystem{
+		client: client,
+		ready:  make(chan struct{}),
+		stats:  cache.NewKeyedCache[os.FileInfo](webDAVMetadataCacheTTL),
+		dirs:   cache.NewKeyedCache[[]os.FileInfo](webDAVMetadataCacheTTL),
+	}
+}
+
+func cachePath(name string) string {
+	return path.Clean("/" + name)
+}
+
+func (f *webDAVFileSystem) stat(name string) (os.FileInfo, error) {
+	key := cachePath(name)
+	if info, ok := f.stats.Get(key); ok {
+		return info, nil
+	}
+	info, err := f.client.Stat(name)
+	if err == nil {
+		f.stats.Set(key, info)
+	}
+	return info, err
+}
+
+func (f *webDAVFileSystem) readDir(name string) ([]os.FileInfo, error) {
+	key := cachePath(name)
+	if files, ok := f.dirs.Get(key); ok {
+		return files, nil
+	}
+	files, err := f.client.ReadDir(name)
+	if err == nil {
+		f.dirs.Set(key, files)
+		for _, info := range files {
+			f.stats.Set(path.Join(key, info.Name()), info)
+		}
+	}
+	return files, err
 }
 
 func (f *webDAVFileSystem) Init() {
@@ -96,7 +140,7 @@ func (f *webDAVFileSystem) Statfs(_ string, stat *fuse.Statfs_t) int {
 }
 
 func (f *webDAVFileSystem) Getattr(name string, stat *fuse.Stat_t, _ uint64) int {
-	info, err := f.client.Stat(name)
+	info, err := f.stat(name)
 	if err != nil {
 		return webDAVError(err)
 	}
@@ -108,7 +152,7 @@ func (f *webDAVFileSystem) Open(name string, flags int) (int, uint64) {
 	if flags&fuse.O_ACCMODE != fuse.O_RDONLY {
 		return -fuse.EROFS, 0
 	}
-	info, err := f.client.Stat(name)
+	info, err := f.stat(name)
 	if err != nil {
 		return webDAVError(err), 0
 	}
@@ -138,7 +182,7 @@ func (f *webDAVFileSystem) Read(name string, buffer []byte, offset int64, _ uint
 }
 
 func (f *webDAVFileSystem) Opendir(name string) (int, uint64) {
-	info, err := f.client.Stat(name)
+	info, err := f.stat(name)
 	if err != nil {
 		return webDAVError(err), 0
 	}
@@ -149,7 +193,7 @@ func (f *webDAVFileSystem) Opendir(name string) (int, uint64) {
 }
 
 func (f *webDAVFileSystem) Readdir(name string, fill func(string, *fuse.Stat_t, int64) bool, _ int64, _ uint64) int {
-	files, err := f.client.ReadDir(name)
+	files, err := f.readDir(name)
 	if err != nil {
 		return webDAVError(err)
 	}
@@ -166,7 +210,7 @@ func (f *webDAVFileSystem) Access(name string, mask uint32) int {
 	if mask&(fuse.W_OK|fuse.DELETE_OK) != 0 {
 		return -fuse.EROFS
 	}
-	_, err := f.client.Stat(name)
+	_, err := f.stat(name)
 	if err != nil {
 		return webDAVError(err)
 	}

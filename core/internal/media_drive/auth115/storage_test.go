@@ -41,3 +41,40 @@ func TestStorageConflict(t *testing.T) {
 		t.Fatalf("conflicting storage was modified: before=%+v after=%+v", existing, unchanged)
 	}
 }
+
+func TestManagedStorageMigratesDirectoryCache(t *testing.T) {
+	connection, err := gorm.Open(sqlite.Open("file:auth115_storage_cache_"+time.Now().Format("20060102150405.000000000")+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := connection.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	conf.Conf = conf.DefaultConfig("data")
+	db.Init(connection)
+	existing := model.Storage{
+		MountPath:       managedMountPath,
+		Driver:          "115 Open",
+		CacheExpiration: 0,
+		Addition:        `{"root_folder_id":"0","access_token":"keep-access"}`,
+		Remark:          "managed-by:openlist-115-media-drive",
+	}
+	if err = db.CreateStorage(&existing); err != nil {
+		t.Fatal(err)
+	}
+
+	NewCoreStorageProvisioner().Status()
+
+	updated, err := db.GetStorageById(existing.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.CacheExpiration != 30 {
+		t.Fatalf("cache expiration = %d, want 30", updated.CacheExpiration)
+	}
+	if updated.MountPath != existing.MountPath || updated.Driver != existing.Driver || updated.Addition != existing.Addition || updated.Remark != existing.Remark {
+		t.Fatalf("migration changed unrelated fields: before=%+v after=%+v", existing, updated)
+	}
+}
