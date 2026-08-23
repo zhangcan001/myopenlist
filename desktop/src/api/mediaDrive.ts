@@ -88,7 +88,7 @@ export class MediaDriveClient {
     const headers = new Headers(init.headers)
     headers.set('Accept', 'application/json')
     if (init.body) headers.set('Content-Type', 'application/json')
-    if (authenticated && this.token) headers.set('Authorization', `Bearer ${this.token}`)
+    if (authenticated && this.token) headers.set('Authorization', this.token)
 
     let response: Response
     try {

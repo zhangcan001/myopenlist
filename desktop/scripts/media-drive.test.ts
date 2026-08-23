@@ -108,6 +108,10 @@ test('Test115AuthorizationWorkflow', async () => {
         '/api/admin/media-drive/115/auth/complete',
       ],
     )
+    assert.deepEqual(
+      calls.slice(1).map(request => request.headers.get('Authorization')),
+      ['admin-token', 'admin-token', 'admin-token'],
+    )
     assert.equal(await calls[3].clone().text(), JSON.stringify({ session_id: 'session-id' }))
   } finally {
     globalThis.fetch = originalFetch
