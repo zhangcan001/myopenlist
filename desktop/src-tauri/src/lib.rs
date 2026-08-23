@@ -16,6 +16,7 @@ use cmd::config::{load_settings, reset_settings, save_settings, save_settings_an
 use cmd::firewall::{add_firewall_rule, check_firewall_rule, remove_firewall_rule};
 use cmd::logs::{clear_logs, get_logs};
 use cmd::macos_dock::set_dock_icon_visibility;
+use cmd::media_drive_115::open_115_hosted_authorization;
 use cmd::openlist_core::{get_openlist_core_status, start_openlist_core, stop_openlist_core};
 use cmd::os_operate::{
     check_media_drive_environment, get_available_versions, open_file, open_folder,
@@ -279,6 +280,7 @@ pub fn run() {
             open_url_in_browser,
             check_media_drive_environment,
             open_vlc_drive,
+            open_115_hosted_authorization,
             // Settings
             save_settings,
             save_settings_and_restart,

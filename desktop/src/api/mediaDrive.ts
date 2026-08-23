@@ -171,6 +171,13 @@ export class MediaDriveClient {
     })
   }
 
+  import115Tokens(accessToken: string, refreshToken: string): Promise<MediaDrive115StorageResult> {
+    return this.request<MediaDrive115StorageResult>('admin/media-drive/115/auth/import', {
+      method: 'POST',
+      body: JSON.stringify({ access_token: accessToken, refresh_token: refreshToken }),
+    })
+  }
+
   mountProfile(): Promise<MediaDriveMountProfile> {
     return this.request<MediaDriveMountProfile>('admin/media-drive/mount/profile')
   }

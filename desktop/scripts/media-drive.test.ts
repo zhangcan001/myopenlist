@@ -118,6 +118,30 @@ test('Test115AuthorizationWorkflow', async () => {
   }
 })
 
+test('Test115HostedAuthorizationImport', async () => {
+  const calls: Request[] = []
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    calls.push(request)
+    if (request.url.endsWith('/api/auth/login')) return response({ token: 'admin-token' })
+    return response({ storage_id: 1, mount_path: '/115', connected: true, state: 'READY' })
+  }
+  try {
+    const client = new MediaDriveClient('http://127.0.0.1:5244', async () => 'admin-password')
+    const storage = await client.import115Tokens('access-secret', 'refresh-secret')
+    assert.equal(storage.mount_path, '/115')
+    assert.equal(new URL(calls[1].url).pathname, '/api/admin/media-drive/115/auth/import')
+    assert.equal(calls[1].headers.get('Authorization'), 'admin-token')
+    assert.equal(
+      await calls[1].clone().text(),
+      JSON.stringify({ access_token: 'access-secret', refresh_token: 'refresh-secret' }),
+    )
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
 test('TestErrorTranslation', () => {
   const diagnostic = translateMediaDriveCode('WINFSP_UNAVAILABLE')
   assert.match(diagnostic.message, /WinFsp/)

@@ -4,6 +4,11 @@ import { appDataDir, join } from '@tauri-apps/api/path'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { check, type DownloadEvent } from '@tauri-apps/plugin-updater'
 
+export interface MediaDrive115HostedTokens {
+  access_token: string
+  refresh_token: string
+}
+
 let pendingUpdateInstance: Awaited<ReturnType<typeof check>> = null
 
 export class TauriAPI {
@@ -54,6 +59,28 @@ export class TauriAPI {
   static mediaDrive = {
     environment: (): Promise<MediaDriveEnvironment> => invoke('check_media_drive_environment'),
     openVlc: (driveLetter: string): Promise<boolean> => invoke('open_vlc_drive', { driveLetter }),
+    authorize115Hosted: async (): Promise<MediaDrive115HostedTokens | null> => {
+      let settled = false
+      let finish!: (tokens: MediaDrive115HostedTokens | null) => void
+      const result = new Promise<MediaDrive115HostedTokens | null>(resolve => {
+        finish = tokens => {
+          if (settled) return
+          settled = true
+          resolve(tokens)
+        }
+      })
+      const unlistenAuthorized = await listen<MediaDrive115HostedTokens>('media-drive-115-authorized', event => {
+        finish(event.payload)
+      })
+      const unlistenClosed = await listen('media-drive-115-auth-closed', () => finish(null))
+      try {
+        await invoke<boolean>('open_115_hosted_authorization')
+        return await result
+      } finally {
+        unlistenAuthorized()
+        unlistenClosed()
+      }
+    },
   }
 
   // --- Settings management ---

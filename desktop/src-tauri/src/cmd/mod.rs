@@ -4,6 +4,7 @@ pub mod config;
 pub mod firewall;
 pub mod logs;
 pub mod macos_dock;
+pub mod media_drive_115;
 pub mod openlist_core;
 pub mod os_operate;
 pub mod rclone_core;

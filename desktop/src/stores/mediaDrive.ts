@@ -216,7 +216,19 @@ export const useMediaDriveStore = defineStore('mediaDrive', () => {
       const client = new MediaDriveClient(appStore.openListCoreUrl)
       const capabilities = await client.authCapabilities()
       if (!capabilities.client_configured) {
-        setError('CONFIG_REQUIRED')
+        if (!capabilities.token_import_available) {
+          setError('CONFIG_REQUIRED')
+          return
+        }
+        let tokens
+        try {
+          tokens = await TauriAPI.mediaDrive.authorize115Hosted()
+        } catch (_error) {
+          throw new MediaDriveError('QR_UNAVAILABLE')
+        }
+        if (!tokens) return
+        await client.import115Tokens(tokens.access_token, tokens.refresh_token)
+        await refreshHealth()
         return
       }
       const session = await client.start115Auth()
